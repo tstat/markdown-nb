@@ -9,6 +9,8 @@
     "dist"
   ],
   "dependencies": {
+    "purescript-aff": "^5.0.0",
+    "purescript-eff": "^3.2.1",
     "purescript-console": "^3.0.0",
     "purescript-halogen": "^2.0.0"
   },
