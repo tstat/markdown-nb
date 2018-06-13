@@ -5,15 +5,16 @@ module Main
 import Mitchell
 
 import Concurrency (killThread)
-import Exception (finally)
+import Exception (finally, onException)
 import FRP
-import Json.Decode (FromJSON)
+import Json.Decode (FromJSON, (.:), withObject)
 import Json.Encode (Value) -- TODO: Export Value from Json.Decode as well
 import Network.WebSockets (Connection, PendingConnection)
 import Text (pack)
 
 import qualified Json.Decode
 import qualified Network.WebSockets as WebSockets
+import qualified Text
 import qualified Text.Partial
 
 --------------------------------------------------------------------------------
@@ -85,17 +86,42 @@ type Document
 
 -- | Apply a 'Delta' to a 'Document'.
 applyDelta :: Delta -> Document -> Document
-applyDelta _ document =
-  document
+applyDelta delta document =
+  case delta of
+    Add off str ->
+      case Text.splitAt off document of
+        (xs, ys) ->
+          xs <> str <> ys
+    Del off len ->
+      case Text.splitAt off document of
+        (xs, ys) ->
+          xs <> Text.drop len ys
 
 -- | An edit to a text document.
 data Delta
-  = Delta Value -- Not parsed yet
+  = Add !Int !Text -- offset, text to add
+  | Del !Int !Int  -- offset, number of chars to remove
+  deriving Show
 
 instance FromJSON Delta where
   parseJSON :: Value -> Json.Decode.Parser Delta
-  parseJSON value =
-    pure (Delta value)
+  parseJSON =
+    withObject "Delta"
+      (\o ->
+        asum
+          [ o .: "add" >>=
+              withObject "Add"
+                (\p ->
+                  Add
+                    <$> p .: "offset"
+                    <*> p .: "text")
+          , o .: "del" >>=
+              withObject "Del"
+                (\p ->
+                  Del
+                    <$> p .: "offset"
+                    <*> p .: "len")
+          ])
 
 --------------------------------------------------------------------------------
 -- Main event network logic
@@ -109,8 +135,10 @@ moment ePendingClient = mdo
     bNextClientId :: Behavior ClientId <-
       accumB 0 ((+1) <$ ePendingClient)
     execute
-      (handleNewClient fireDisconnect
+      ((\cid document pending ->
+        handleNewClient (fireDisconnect cid) cid document pending)
         <$> bNextClientId
+        <*> bDocument
         <@> ePendingClient)
 
   -- Disconnect event; fires whenever a client disconnects (which we discover
@@ -134,6 +162,10 @@ moment ePendingClient = mdo
   eInput :: Event Delta <-
     switchE (foldr (unionWith const . clientInput) never <$> eClients)
 
+  -- The document.
+  bDocument :: Behavior Document <-
+    accumB "" (applyDelta <$> eInput)
+
   -- Debug: print when a client connects.
   reactimate
     ((\client ->
@@ -147,17 +179,23 @@ moment ePendingClient = mdo
         eDisconnect)
 
   -- Debug: print the messages sent to the server.
-  reactimate ((\(Delta val) -> putStrLn (pack (show val))) <$> eInput)
+  reactimate (print <$> eInput)
 
 handleNewClient
-  :: (ClientId -> IO ())
+  :: IO ()
   -> ClientId
+  -> Document
   -> (PendingConnection, ThreadId)
   -> MomentIO Client
-handleNewClient fireDisconnect cid (pconn, tid) = do
+handleNewClient fireDisconnect cid document (pconn, tid) = do
   -- Always accept every client
   conn :: Connection <-
     liftIO (WebSockets.acceptRequest pconn)
+
+  -- Send the client the current document
+  liftIO
+    (WebSockets.sendTextData conn document
+      `onException` fireDisconnect)
 
   -- Create a new Event that corresponds to this client's input sent to the
   -- server.
@@ -184,7 +222,7 @@ handleNewClient fireDisconnect cid (pconn, tid) = do
               loop
 
       loop `finally` do
-        fireDisconnect cid
+        fireDisconnect
         killThread tid)
 
   pure Client

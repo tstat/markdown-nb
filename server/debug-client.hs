@@ -23,7 +23,7 @@ main = do
   putStrLn "Connecting to server at 127.0.0.1:8600/"
   WebSockets.runClient "127.0.0.1" 8600 "" $ \conn ->
     race_
-      (do
+      (forever $ do
         msg :: Text <-
           WebSockets.receiveData conn
         putStrLn ("RECV: " <> msg))
