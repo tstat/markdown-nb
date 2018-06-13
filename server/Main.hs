@@ -7,12 +7,15 @@ import Mitchell
 import Concurrency (killThread)
 import Exception (finally, onException)
 import FRP
-import Json.Decode (FromJSON, (.:), withObject)
-import Json.Encode (Value) -- TODO: Export Value from Json.Decode as well
+import Json.Decode (FromJSON, (.:), parseJSON, withObject)
+import Json.Encode (ToJSON, Value, (.=), toJSON)
 import Network.WebSockets (Connection, PendingConnection)
 import Text (pack)
 
-import qualified Json.Decode
+import qualified ByteString.Lazy as Lazy (ByteString)
+import qualified Json.Decode as Json (Parser, decodeStrict)
+import qualified Json.Encode
+import qualified Json.Encode as Json (encode)
 import qualified Network.WebSockets as WebSockets
 import qualified Text
 import qualified Text.Partial
@@ -69,6 +72,7 @@ type ClientId
 data Client = Client
   { clientId :: !ClientId
   , clientInput :: Event Delta
+  , clientSend :: Lazy.ByteString -> IO ()
   }
 
 deleteClient :: ClientId -> [Client] -> [Client]
@@ -104,7 +108,7 @@ data Delta
   deriving Show
 
 instance FromJSON Delta where
-  parseJSON :: Value -> Json.Decode.Parser Delta
+  parseJSON :: Value -> Json.Parser Delta
   parseJSON =
     withObject "Delta"
       (\o ->
@@ -113,15 +117,33 @@ instance FromJSON Delta where
               withObject "Add"
                 (\p ->
                   Add
-                    <$> p .: "offset"
-                    <*> p .: "text")
+                    <$> p .: "off"
+                    <*> p .: "txt")
           , o .: "del" >>=
               withObject "Del"
                 (\p ->
                   Del
-                    <$> p .: "offset"
+                    <$> p .: "off"
                     <*> p .: "len")
           ])
+
+instance ToJSON Delta where
+  toJSON :: Delta -> Value
+  toJSON = \case
+    Add off text ->
+      Json.Encode.object
+        [ "add" .= Json.Encode.object
+            [ "off" .= toJSON off
+            , "txt" .= toJSON text
+            ]
+        ]
+    Del off len ->
+      Json.Encode.object
+        [ "del" .= Json.Encode.object
+            [ "off" .= toJSON off
+            , "len" .= toJSON len
+            ]
+        ]
 
 --------------------------------------------------------------------------------
 -- Main event network logic
@@ -155,6 +177,8 @@ moment ePendingClient = mdo
         [ (:) <$> eConnect
         , deleteClient <$> eDisconnect
         ])
+  bClients :: Behavior [Client] <-
+    stepper [] eClients
 
   -- The input sent to the server from all connected clients. Each time
   -- 'eClients' fires, we switch to the event that unions all of the clients'
@@ -165,6 +189,17 @@ moment ePendingClient = mdo
   -- The document.
   bDocument :: Behavior Document <-
     accumB "" (applyDelta <$> eInput)
+
+  -- Forward delta to every connected client
+  reactimate
+    ((\clients delta ->
+      traverse_
+        (\client ->
+          clientSend client (Json.encode delta)
+            `onException` fireDisconnect (clientId client))
+        clients)
+      <$> bClients
+      <@> eInput)
 
   -- Debug: print when a client connects.
   reactimate
@@ -212,7 +247,7 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
         loop = do
           bytes :: ByteString <-
             WebSockets.receiveData conn
-          case Json.Decode.decodeStrict bytes of
+          case Json.decodeStrict bytes of
             Nothing -> do
               putStrLn
                 ("Failed to decode payload: " <>
@@ -228,4 +263,5 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
   pure Client
     { clientId = cid
     , clientInput = eDelta
+    , clientSend = WebSockets.sendTextData conn
     }
