@@ -4,6 +4,10 @@ module Main
 
 import Mitchell
 
+import Document (Document)
+
+import qualified Document
+
 import Concurrency (killThread)
 import Exception (finally, onException)
 import FRP
@@ -17,7 +21,6 @@ import qualified Json.Decode as Json (Parser, decodeStrict)
 import qualified Json.Encode
 import qualified Json.Encode as Json (encode)
 import qualified Network.WebSockets as WebSockets
-import qualified Text
 import qualified Text.Partial
 
 --------------------------------------------------------------------------------
@@ -84,23 +87,6 @@ deleteClient x = \case
   y:ys ->
     y : deleteClient x ys
 
--- | A text document.
-type Document
-  = Text
-
--- | Apply a 'Delta' to a 'Document'.
-applyDelta :: Delta -> Document -> Document
-applyDelta delta document =
-  case delta of
-    Add off str ->
-      case Text.splitAt off document of
-        (xs, ys) ->
-          xs <> str <> ys
-    Del off len ->
-      case Text.splitAt off document of
-        (xs, ys) ->
-          xs <> Text.drop len ys
-
 -- | An edit to a text document.
 data Delta
   = Add !Int !Text -- offset, text to add
@@ -145,6 +131,20 @@ instance ToJSON Delta where
             ]
         ]
 
+-- | Apply a 'Delta' to a 'Document'.
+applyDelta :: Delta -> Document -> Document
+applyDelta delta document =
+  case delta of
+    Add off str ->
+      case Document.splitAt off document of
+        (xs, ys) ->
+          xs <> Document.fromText str <> ys
+
+    Del off len ->
+      case Document.splitAt off document of
+        (xs, ys) ->
+          xs <> Document.drop len ys
+
 --------------------------------------------------------------------------------
 -- Main event network logic
 --------------------------------------------------------------------------------
@@ -188,7 +188,7 @@ moment ePendingClient = mdo
 
   -- The document.
   bDocument :: Behavior Document <-
-    accumB "" (applyDelta <$> eInput)
+    accumB mempty (applyDelta <$> eInput)
 
   -- Forward delta to every connected client
   reactimate
@@ -229,7 +229,7 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
 
   -- Send the client the current document
   liftIO
-    (WebSockets.sendTextData conn document
+    (WebSockets.sendTextData conn (Document.toLazyText document)
       `onException` fireDisconnect)
 
   -- Create a new Event that corresponds to this client's input sent to the
