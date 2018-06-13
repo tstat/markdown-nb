@@ -1,0 +1,29 @@
+cabal-version: 2.2
+name: markdown-nb-server
+version: 0
+
+executable markdown-db-server
+  build-depends: mitchell-stdlib
+  default-extensions:
+    BinaryLiterals ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass
+    DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift
+    DeriveTraversable DerivingStrategies DisambiguateRecordFields
+    DuplicateRecordFields EmptyCase EmptyDataDecls ExistentialQuantification
+    FlexibleContexts FlexibleInstances FunctionalDependencies GADTs
+    GeneralizedNewtypeDeriving InstanceSigs KindSignatures LambdaCase
+    LiberalTypeSynonyms MagicHash MultiWayIf NamedFieldPuns NamedWildCards
+    NoImplicitPrelude NoMonomorphismRestriction NumDecimals OverloadedStrings
+    PartialTypeSignatures PackageImports PatternSynonyms PolyKinds RankNTypes
+    RecursiveDo RoleAnnotations ScopedTypeVariables StandaloneDeriving
+    TupleSections TypeApplications TypeFamilies TypeFamilyDependencies
+    TypeInType TypeOperators TypeSynonymInstances UnboxedSums UnicodeSyntax
+    ViewPatterns
+  default-language: Haskell2010
+  ghc-options:
+   -fprint-expanded-synonyms -fprint-explicit-foralls -fprint-explicit-kinds
+   -fprint-unicode-syntax -freverse-errors -threaded -rtsopts -Wall -Wcompat
+   -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns
+   -Wmissing-export-lists -Wmissing-local-signatures
+   -Wnoncanonical-monad-instances -Wnoncanonical-monadfail-instances
+   -Wpartial-fields -Wredundant-constraints
+  main-is: Main.hs
