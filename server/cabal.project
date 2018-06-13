@@ -1,1 +1,10 @@
 packages: ., deps/mitchell-stdlib
+
+package mitchell-stdlib
+  flags:
+    +dep-aeson
+    +dep-reactive-banana
+    +dep-safe-exceptions
+
+    -- This is for debug-client.hs
+    +dep-async

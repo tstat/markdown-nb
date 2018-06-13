@@ -3,7 +3,10 @@ name: markdown-nb-server
 version: 0
 
 executable markdown-db-server
-  build-depends: mitchell-stdlib
+  build-depends:
+      mitchell-stdlib
+    , safe-exceptions ^>= 0.1
+    , websockets ^>= 0.12
   default-extensions:
     BinaryLiterals ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass
     DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift
