@@ -25,28 +25,33 @@ main = do
   --
   -- Create network inputs
   --
+
   (newClientAddHandler, fireNewClient) <-
     newAddHandler
 
   --
   -- Define the event network
   --
+
   network :: EventNetwork <-
     compile $ do
-      eNewClient :: Event (PendingConnection, ThreadId) <-
+      ePendingClient :: Event (PendingConnection, ThreadId) <-
         fromAddHandler newClientAddHandler
 
-      moment eNewClient
+      moment ePendingClient
 
   --
   -- Actuate the event network
   --
+
   actuate network
 
   --
   -- Accept clients forever
   --
+
   putStrLn "Running on 0.0.0.0:8600"
+
   WebSockets.runServer "0.0.0.0" 8600 $ \pconn -> do
     tid :: ThreadId <-
       myThreadId
@@ -57,9 +62,31 @@ main = do
 -- Data types and pure functions
 --------------------------------------------------------------------------------
 
+type ClientId
+  = Int
+
+data Client = Client
+  { clientId :: !ClientId
+  , clientInput :: Event Delta
+  }
+
+deleteClient :: ClientId -> [Client] -> [Client]
+deleteClient x = \case
+  [] ->
+    []
+  y:ys | x == clientId y ->
+    ys
+  y:ys ->
+    y : deleteClient x ys
+
 -- | A text document.
--- type Document
---   = Text
+type Document
+  = Text
+
+-- | Apply a 'Delta' to a 'Document'.
+applyDelta :: Delta -> Document -> Document
+applyDelta _ document =
+  document
 
 -- | An edit to a text document.
 data Delta
@@ -75,34 +102,59 @@ instance FromJSON Delta where
 --------------------------------------------------------------------------------
 
 moment :: Event (PendingConnection, ThreadId) -> MomentIO ()
-moment eNewClient = do
-  -- The "new input" event. Every time a client connects, this event fires,
-  -- carrying that client's event of messages sent to the server.
-  eNewInput :: Event (Event Delta) <-
-    execute (handleNewClient <$> eNewClient)
+moment ePendingClient = mdo
+  -- The "new client" event. Every time a pending client connects, this event
+  -- fires, carrying that client's event of messages sent to the server.
+  eConnect :: Event Client <- do
+    bNextClientId :: Behavior ClientId <-
+      accumB 0 ((+1) <$ ePendingClient)
+    execute
+      (handleNewClient fireDisconnect
+        <$> bNextClientId
+        <@> ePendingClient)
 
-  -- The input events of all of the connected clients. This event fires with the
-  -- most up-to-date list of connected clients' input events.
-  eInputs :: Event [Event Delta] <-
+  -- Disconnect event; fires whenever a client disconnects (which we discover
+  -- when we get an IO exception when attempting to send/recv to/from their
+  -- websocket).
+  (eDisconnect, fireDisconnect) :: (Event ClientId, ClientId -> IO ()) <-
+    newEvent
+
+  -- The connected clients. This event fires with the most up-to-date list of
+  -- connected clients whenever it changes (connect/disconnect).
+  eClients :: Event [Client] <-
     accumE []
       (unions
-        [ (:) <$> eNewInput
+        [ (:) <$> eConnect
+        , deleteClient <$> eDisconnect
         ])
 
   -- The input sent to the server from all connected clients. Each time
-  -- 'eInputs' fires, we switch to the event that unions all of the carried
-  -- events together.
+  -- 'eClients' fires, we switch to the event that unions all of the clients'
+  -- input events together.
   eInput :: Event Delta <-
-    switchE (foldr (unionWith const) never <$> eInputs)
+    switchE (foldr (unionWith const . clientInput) never <$> eClients)
 
   -- Debug: print when a client connects.
-  reactimate (putStrLn "Client connected" <$ eNewInput)
+  reactimate
+    ((\client ->
+      putStrLn ("Client " <> pack (show (clientId client)) <> " connected")) <$>
+        eConnect)
+
+  -- Debug: print when a client connects.
+  reactimate
+    ((\cid ->
+      putStrLn ("Client " <> pack (show cid) <> " disconnected")) <$>
+        eDisconnect)
 
   -- Debug: print the messages sent to the server.
   reactimate ((\(Delta val) -> putStrLn (pack (show val))) <$> eInput)
 
-handleNewClient :: (PendingConnection, ThreadId) -> MomentIO (Event Delta)
-handleNewClient (pconn, tid) = do
+handleNewClient
+  :: (ClientId -> IO ())
+  -> ClientId
+  -> (PendingConnection, ThreadId)
+  -> MomentIO Client
+handleNewClient fireDisconnect cid (pconn, tid) = do
   -- Always accept every client
   conn :: Connection <-
     liftIO (WebSockets.acceptRequest pconn)
@@ -113,9 +165,8 @@ handleNewClient (pconn, tid) = do
     newEvent
 
   -- In a background thread, forward all input from the connected client to its
-  -- Event. If receiving fails, kill the server thread.
-  --
-  -- TODO: Get disconnect event into the network somehow.
+  -- Event. If receiving fails, fire a disconnect into the network and kill the
+  -- server thread.
   (liftIO . void . forkIO)
     (do
       let
@@ -132,6 +183,11 @@ handleNewClient (pconn, tid) = do
               fireDelta delta
               loop
 
-      loop `finally` killThread tid)
+      loop `finally` do
+        fireDisconnect cid
+        killThread tid)
 
-  pure eDelta
+  pure Client
+    { clientId = cid
+    , clientInput = eDelta
+    }
