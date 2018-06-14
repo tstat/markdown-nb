@@ -5,6 +5,7 @@ package mitchell-stdlib
     +dep-aeson
     +dep-reactive-banana
     +dep-safe-exceptions
+    +dep-unix
 
     -- This is for debug-client.hs
     +dep-async

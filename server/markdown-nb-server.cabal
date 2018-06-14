@@ -6,6 +6,7 @@ executable markdown-db-server
   build-depends:
       mitchell-stdlib
     , safe-exceptions ^>= 0.1
+    , text
     , websockets ^>= 0.12
 
   default-extensions:

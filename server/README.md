@@ -4,7 +4,7 @@
 - After, the server accepts and sends document deltas that look like:
 
   ```
-  { 
+  {
     "add": {
       "off": 10,    // codepoint-offset into document
       "txt": "foo"  // bytes to insert
@@ -23,11 +23,17 @@
 #### Building
 
     ./build
-    
+
 #### Running
 
-    ./run
+    ./run <file>
 
 #### `ghcid` development
 
     ./dev
+
+#### Debug client
+
+Forwards stdin to the server; prints server messages on stdout.
+
+    runghc debug-client.hs

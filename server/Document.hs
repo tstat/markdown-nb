@@ -4,14 +4,18 @@ module Document
   , toLazyText
   , drop
   , splitAt
+  , write
   ) where
 
 import Mitchell
 
 import Bifunctor (first)
 import Coerce (coerce)
+import File (FilePath)
 import Sequence (pattern (:<|))
 
+import qualified Data.Text.Lazy.IO as Text.Lazy
+import qualified Sequence as Seq
 import qualified Text
 import qualified Text.Lazy as Lazy (Text)
 import qualified Text.Lazy
@@ -22,7 +26,7 @@ newtype Document
 
 fromText :: Text -> Document
 fromText =
-  Document . pure
+  Document . Seq.fromList . Text.chunksOf 1024
 
 toLazyText :: Document -> Lazy.Text
 toLazyText =
@@ -65,3 +69,7 @@ splitAt_ n = \case
         first (x :<|) (splitAt_ (n - Text.length x) xs)
   x ->
     (x, x)
+
+write :: FilePath -> Document -> IO ()
+write file =
+  Text.Lazy.writeFile file . toLazyText

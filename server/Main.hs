@@ -9,11 +9,15 @@ import Document (Document)
 import qualified Document
 
 import Concurrency (killThread)
-import Exception (finally, onException)
+import Environment (getArgs)
+import Exception (ExitCode(..), exitFailure, finally, onException)
+import File (FilePath)
+import File.Text (readFile)
 import FRP
 import Json.Decode (FromJSON, (.:), parseJSON, withObject)
 import Json.Encode (ToJSON, Value, (.=), toJSON)
 import Network.WebSockets (Connection, PendingConnection)
+import Process (exitImmediately)
 import Text (pack)
 
 import qualified ByteString.Lazy as Lazy (ByteString)
@@ -30,6 +34,18 @@ import qualified Text.Partial
 main :: IO ()
 main = do
   --
+  -- Parse command-line arguments
+  --
+
+  file :: FilePath <-
+    getArgs >>= \case
+      [file] ->
+        pure file
+      _ -> do
+        hPutStrLn stderr "Usage: markdown-nb-server FILE"
+        exitFailure
+
+  --
   -- Create network inputs
   --
 
@@ -45,7 +61,7 @@ main = do
       ePendingClient :: Event (PendingConnection, ThreadId) <-
         fromAddHandler newClientAddHandler
 
-      moment ePendingClient
+      moment file ePendingClient
 
   --
   -- Actuate the event network
@@ -57,7 +73,7 @@ main = do
   -- Accept clients forever
   --
 
-  putStrLn "Running on 0.0.0.0:8600"
+  putStrLn ("Serving " <> pack file <> " on 0.0.0.0:8600")
 
   WebSockets.runServer "0.0.0.0" 8600 $ \pconn -> do
     tid :: ThreadId <-
@@ -149,8 +165,24 @@ applyDelta delta document =
 -- Main event network logic
 --------------------------------------------------------------------------------
 
-moment :: Event (PendingConnection, ThreadId) -> MomentIO ()
-moment ePendingClient = mdo
+moment :: FilePath -> Event (PendingConnection, ThreadId) -> MomentIO ()
+moment file ePendingClient = mdo
+  -- Create a "write" event that fires every few seconds. When it fires, write
+  -- the file to disk. If writing fails, the server dies.
+  do
+    (eWrite, fireWrite) <-
+      newEvent
+
+    (liftIO . void . forkIO . forever) $ do
+      threadDelay (3*1000*1000)
+      fireWrite () `onException`
+        exitImmediately (ExitFailure 1)
+
+    on eWrite $ \_ -> do
+      document :: Document <-
+        valueB bDocument
+      pure (Document.write file document)
+
   -- The "new client" event. Every time a pending client connects, this event
   -- fires, carrying that client's event of messages sent to the server.
   eConnect :: Event Client <- do
@@ -187,34 +219,34 @@ moment ePendingClient = mdo
     switchE (foldr (unionWith const . clientInput) never <$> eClients)
 
   -- The document.
-  bDocument :: Behavior Document <-
-    accumB mempty (applyDelta <$> eInput)
+  bDocument :: Behavior Document <- do
+    document0 :: Document <-
+      liftIO (Document.fromText <$> readFile file)
+
+    accumB document0 (applyDelta <$> eInput)
 
   -- Forward delta to every connected client
-  reactimate
-    ((\clients delta ->
+  on eInput $ \delta -> do
+    clients :: [Client] <-
+      valueB bClients
+    pure $
       traverse_
         (\client ->
           clientSend client (Json.encode delta)
             `onException` fireDisconnect (clientId client))
-        clients)
-      <$> bClients
-      <@> eInput)
+        clients
 
   -- Debug: print when a client connects.
-  reactimate
-    ((\client ->
-      putStrLn ("Client " <> pack (show (clientId client)) <> " connected")) <$>
-        eConnect)
+  on eConnect $ \client ->
+    pure (putStrLn ("Client " <> pack (show (clientId client)) <> " connected"))
 
   -- Debug: print when a client connects.
-  reactimate
-    ((\cid ->
-      putStrLn ("Client " <> pack (show cid) <> " disconnected")) <$>
-        eDisconnect)
+  on eDisconnect $ \cid ->
+    pure (putStrLn ("Client " <> pack (show cid) <> " disconnected"))
 
   -- Debug: print the messages sent to the server.
-  reactimate (print <$> eInput)
+  on eInput $ \msg ->
+    pure (print msg)
 
 handleNewClient
   :: IO ()
@@ -265,3 +297,7 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
     , clientInput = eDelta
     , clientSend = WebSockets.sendTextData conn
     }
+
+on :: Event a -> (a -> Moment (IO ())) -> MomentIO ()
+on event callback =
+  reactimate (observeE (callback <$> event))
