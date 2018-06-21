@@ -1,0 +1,11 @@
+cabal-version: 2.2
+
+name: shakefile
+version: 0
+
+executable shakefile
+  build-depends:
+      base
+    , shake
+  ghc-options: -Wall -O -threaded -rtsopts "-with-rtsopts=-N"
+  main-is: Main.hs
