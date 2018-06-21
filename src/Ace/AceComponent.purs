@@ -6,6 +6,7 @@ import Ace as Ace
 import Ace.EditSession as Session
 import Ace.Editor as Editor
 import Ace.Types (Editor)
+import Data.Const (Const)
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
 import Halogen as H
@@ -40,7 +41,7 @@ aceComponent =
     , eval
     , initializer
     , finalizer
-    , receiver: const Nothing
+    , receiver
     }
 
 initialState :: AceInput -> AceState
@@ -50,8 +51,9 @@ initialState _ =
 -- As we're embedding a 3rd party component we only need to create a placeholder
 -- div here and attach the ref property which will let us reference the element
 -- in eval.
-render :: AceState -> H.ComponentHTML AceQuery
-render = const $ HH.div [ HP.ref (H.RefLabel "ace") ] []
+render :: AceState -> HH.HTML Void (AceQuery Unit)
+render _ =
+  HH.div [ HP.ref (H.RefLabel "ace") ] []
 
 -- The query algebra for the component handles the initialization of the Ace
 -- editor as well as responding to the `ChangeText` action that allows us to
@@ -68,7 +70,9 @@ eval = case _ of
     evalHandleChange reply
 
 evalInitialize
-  :: forall x. x -> H.ComponentDSL AceState AceQuery AceOutput Aff x
+  :: forall x.
+     x
+  -> H.HalogenM AceState AceQuery (Const Void) Void AceOutput Aff x
 evalInitialize next = do
   H.getHTMLElementRef (H.RefLabel "ace") >>= case _ of
     Nothing -> pure unit
@@ -79,7 +83,10 @@ evalInitialize next = do
       H.subscribe $ H.eventSource_ (Session.onChange session) (H.request HandleChange)
   pure next
 
-evalFinalize :: forall x. x -> H.ComponentDSL AceState AceQuery AceOutput Aff x
+evalFinalize
+  :: forall x.
+     x
+  -> H.HalogenM AceState AceQuery (Const Void) Void AceOutput Aff x
 evalFinalize next = do
   -- Release the reference to the editor and do any other cleanup that a
   -- real world component might need.
@@ -87,7 +94,10 @@ evalFinalize next = do
   pure next
 
 evalChangeText
-  :: forall x. String -> x -> H.ComponentDSL AceState AceQuery AceOutput Aff x
+  :: forall x.
+     String
+  -> x
+  -> H.HalogenM AceState AceQuery (Const Void) Void AceOutput Aff x
 evalChangeText text next = do
   maybeEditor <- H.gets _.editor
   case maybeEditor of
@@ -102,7 +112,7 @@ evalChangeText text next = do
 evalHandleChange
   :: forall x.
      (H.SubscribeStatus -> x)
-  -> H.ComponentDSL AceState AceQuery AceOutput Aff x
+  -> H.HalogenM AceState AceQuery (Const Void) Void AceOutput Aff x
 evalHandleChange reply = do
   maybeEditor <- H.gets _.editor
   case maybeEditor of
