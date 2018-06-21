@@ -1,6 +1,7 @@
 .ghc.environment.*
 bower_components/
 dist/
+dist/app.js
 dist-newstyle/
 node_modules/
 output/

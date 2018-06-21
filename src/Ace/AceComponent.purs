@@ -53,7 +53,7 @@ initialState _ =
 -- in eval.
 render :: AceState -> HH.HTML Void (AceQuery Unit)
 render _ =
-  HH.div [ HP.ref (H.RefLabel "ace") ] []
+  HH.div [ HP.ref (H.RefLabel "ace"), HP.class_ (HH.ClassName "ace-editor") ] []
 
 -- The query algebra for the component handles the initialization of the Ace
 -- editor as well as responding to the `ChangeText` action that allows us to

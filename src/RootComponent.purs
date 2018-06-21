@@ -6,6 +6,8 @@ import Ace.AceComponent (AceOutput(..), AceQuery(..), aceComponent)
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
+import Effect.Class.Console (log)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
