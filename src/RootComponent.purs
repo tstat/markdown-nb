@@ -2,11 +2,10 @@ module RootComponent where
 
 import Prelude
 
+import Ace.AceComponent (AceOutput(..), AceQuery(..), aceComponent)
 import Data.Maybe (Maybe(..))
-import Data.Symbol (SProxy(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
-import Ace.AceComponent (AceOutput(..), AceQuery(..), AceSlot, aceComponent)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -22,28 +21,26 @@ data Query a
   = ClearText a
   | HandleAceUpdate String a
 
-type ChildSlots =
-  ( ace :: AceSlot Unit
-  )
-
-_ace = SProxy :: SProxy "ace"
+-- | The slot address type for the Ace component.
+data AceSlot = AceSlot
+derive instance eqAceSlot :: Eq AceSlot
+derive instance ordAceSlot :: Ord AceSlot
 
 -- | The main UI component definition.
 ui :: H.Component HH.HTML Query Unit Void Aff
 ui =
-  H.component
+  H.parentComponent
     { initialState: const initialState
     , render
     , eval
     , receiver: const Nothing
-    , initializer: Nothing
-    , finalizer: Nothing
     }
   where
+
   initialState :: State
   initialState = { text: "" }
 
-  render :: State -> H.ComponentHTML Query ChildSlots Aff
+  render :: State -> H.ParentHTML Query AceQuery AceSlot Aff
   render { text: text } =
     HH.div_
       [ HH.h1_
@@ -56,13 +53,14 @@ ui =
               ]
           ]
       , HH.div_
-          [ HH.slot _ace unit aceComponent unit handleAceOuput ]
+          [ HH.slot AceSlot aceComponent unit handleAceOuput ]
       , HH.p_
           [ HH.text ("Current text: " <> text) ]
       ]
-  eval :: Query ~> H.HalogenM State Query ChildSlots Void Aff
+
+  eval :: Query ~> H.ParentDSL State Query AceQuery AceSlot Void Aff
   eval (ClearText next) = do
-    _ <- H.query _ace unit $ H.action (ChangeText "")
+    _ <- H.query AceSlot $ H.action (ChangeText "")
     pure next
   eval (HandleAceUpdate text next) = do
     H.modify_ (_ { text = text })
