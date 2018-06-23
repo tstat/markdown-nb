@@ -1,75 +1,73 @@
+-- | Ace editor 'Document'.
+
 module Document
   ( Document
   , fromText
-  , toLazyText
-  , drop
-  , splitAt
-  , write
+  , toText
+  , applyDelta
+    -- ** I/O
+  , readFile
+  , writeFile
   ) where
 
 import Mitchell
 
-import Bifunctor (first)
-import Coerce (coerce)
-import File (FilePath)
-import Sequence (pattern (:<|))
+import Delta
 
-import qualified Data.Text.Lazy.IO as Text.Lazy
-import qualified Sequence as Seq
-import qualified Text
-import qualified Text.Lazy as Lazy (Text)
-import qualified Text.Lazy
+import Coerce (coerce)
+import Control.Lens (over) -- TODO: export from mitchell-stdlib
+import Control.Lens.Tuple -- TODO: export from mitchell-stdlib
+import File (FilePath, IOMode(ReadMode))
+import File.Text (hSetEncoding, utf8, withFile)
+import Yi.Rope (YiString)
+
+import qualified Vector
+import qualified Yi.Rope as Yi
 
 newtype Document
-  = Document (Seq Text)
-  deriving (Monoid, Semigroup)
+  = Document YiString
+  deriving newtype (Monoid, Semigroup)
 
 fromText :: Text -> Document
 fromText =
-  Document . Seq.fromList . Text.chunksOf 1024
+  undefined
+  -- Document . Seq.fromList . Text.chunksOf 1024
 
-toLazyText :: Document -> Lazy.Text
-toLazyText =
-  coerce toLazyText_
+toText :: Document -> Text
+toText =
+  coerce Yi.toText
 
-toLazyText_ :: Seq Text -> Lazy.Text
-toLazyText_ =
-  Text.Lazy.fromChunks . toList
+-- | Apply a 'Delta' to a 'Document'.
+applyDelta :: Delta -> Document -> Document
+applyDelta =
+  coerce applyDelta_
 
-drop :: Int -> Document -> Document
-drop =
-  coerce drop_
+applyDelta_ :: Delta -> YiString -> YiString
+applyDelta_ delta rope =
+  case delta of
+    DeltaInsert Insert{start = Loc{row, column}, lines} ->
+      let
+        (xs, (ys, zs)) =
+          Yi.splitAtLine row rope
+            & over _2 (Yi.splitAt column)
+      in
+        mconcat
+          [ xs
+          , ys
+          , mconcat (((`Yi.snoc` '\n') . Yi.fromText) <$> Vector.toList lines)
+          , zs
+          ]
 
-drop_ :: Int -> Seq Text -> Seq Text
-drop_ n = \case
-  x :<| xs ->
-    case compare n (Text.length x) of
-      LT ->
-        Text.drop n x :<| xs
-      EQ ->
-        xs
-      GT ->
-        drop_ (n - Text.length x) xs
-  x ->
-    x
+    DeltaRemove _ ->
+      error "TODO: handle removes"
 
-splitAt :: Int -> Document -> (Document, Document)
-splitAt =
-  coerce splitAt_
+readFile :: MonadIO m => FilePath -> m Document
+readFile path =
+  liftIO $ do
+    withFile path ReadMode $ \handle -> do
+      hSetEncoding handle utf8
+      Document . Yi.fromText <$> hGetContents handle
 
-splitAt_ :: Int -> Seq Text -> (Seq Text, Seq Text)
-splitAt_ n = \case
-  x :<| xs ->
-    if n <= Text.length x
-      then
-        case Text.splitAt n x of
-          (ys, zs) ->
-            (pure ys, zs :<| xs)
-      else
-        first (x :<|) (splitAt_ (n - Text.length x) xs)
-  x ->
-    (x, x)
-
-write :: FilePath -> Document -> IO ()
-write file =
-  Text.Lazy.writeFile file . toLazyText
+writeFile :: FilePath -> Document -> IO ()
+writeFile =
+  coerce Yi.writeFile

@@ -6,6 +6,8 @@ package mitchell-stdlib
     +dep-reactive-banana
     +dep-safe-exceptions
     +dep-unix
+    +dep-unordered-containers
+    +dep-vector
 
     -- This is for debug-client.hs
     +dep-async

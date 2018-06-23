@@ -4,6 +4,7 @@ module Main
 
 import Mitchell
 
+import Delta
 import Document (Document)
 
 import qualified Document
@@ -12,17 +13,13 @@ import Concurrency (killThread)
 import Environment (getArgs)
 import Exception (ExitCode(..), exitFailure, finally, onException)
 import File (FilePath)
-import File.Text (readFile)
 import FRP
-import Json.Decode (FromJSON, (.:), parseJSON, withObject)
-import Json.Encode (ToJSON, Value, (.=), toJSON)
 import Network.WebSockets (Connection, PendingConnection)
 import Process (exitImmediately)
 import Text (pack)
 
 import qualified ByteString.Lazy as Lazy (ByteString)
-import qualified Json.Decode as Json (Parser, decodeStrict)
-import qualified Json.Encode
+import qualified Json.Decode as Json (decodeStrict)
 import qualified Json.Encode as Json (encode)
 import qualified Network.WebSockets as WebSockets
 import qualified Text.Partial
@@ -46,15 +43,11 @@ main = do
         exitFailure
 
   --
-  -- Create network inputs
+  -- Create the event network
   --
 
   (newClientAddHandler, fireNewClient) <-
     newAddHandler
-
-  --
-  -- Define the event network
-  --
 
   network :: EventNetwork <-
     compile $ do
@@ -62,10 +55,6 @@ main = do
         fromAddHandler newClientAddHandler
 
       moment file ePendingClient
-
-  --
-  -- Actuate the event network
-  --
 
   actuate network
 
@@ -103,64 +92,6 @@ deleteClient x = \case
   y:ys ->
     y : deleteClient x ys
 
--- | An edit to a text document.
-data Delta
-  = Add !Int !Text -- offset, text to add
-  | Del !Int !Int  -- offset, number of chars to remove
-  deriving Show
-
-instance FromJSON Delta where
-  parseJSON :: Value -> Json.Parser Delta
-  parseJSON =
-    withObject "Delta"
-      (\o ->
-        asum
-          [ o .: "add" >>=
-              withObject "Add"
-                (\p ->
-                  Add
-                    <$> p .: "off"
-                    <*> p .: "txt")
-          , o .: "del" >>=
-              withObject "Del"
-                (\p ->
-                  Del
-                    <$> p .: "off"
-                    <*> p .: "len")
-          ])
-
-instance ToJSON Delta where
-  toJSON :: Delta -> Value
-  toJSON = \case
-    Add off text ->
-      Json.Encode.object
-        [ "add" .= Json.Encode.object
-            [ "off" .= toJSON off
-            , "txt" .= toJSON text
-            ]
-        ]
-    Del off len ->
-      Json.Encode.object
-        [ "del" .= Json.Encode.object
-            [ "off" .= toJSON off
-            , "len" .= toJSON len
-            ]
-        ]
-
--- | Apply a 'Delta' to a 'Document'.
-applyDelta :: Delta -> Document -> Document
-applyDelta delta document =
-  case delta of
-    Add off str ->
-      case Document.splitAt off document of
-        (xs, ys) ->
-          xs <> Document.fromText str <> ys
-
-    Del off len ->
-      case Document.splitAt off document of
-        (xs, ys) ->
-          xs <> Document.drop len ys
-
 --------------------------------------------------------------------------------
 -- Main event network logic
 --------------------------------------------------------------------------------
@@ -181,7 +112,7 @@ moment file ePendingClient = mdo
     on eWrite $ \_ -> do
       document :: Document <-
         valueB bDocument
-      pure (Document.write file document)
+      pure (Document.writeFile file document)
 
   -- The "new client" event. Every time a pending client connects, this event
   -- fires, carrying that client's event of messages sent to the server.
@@ -221,9 +152,9 @@ moment file ePendingClient = mdo
   -- The document.
   bDocument :: Behavior Document <- do
     document0 :: Document <-
-      liftIO (Document.fromText <$> readFile file)
+      Document.readFile file
 
-    accumB document0 (applyDelta <$> eInput)
+    accumB document0 (Document.applyDelta <$> eInput)
 
   -- Forward delta to every connected client
   on eInput $ \delta -> do
@@ -261,7 +192,7 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
 
   -- Send the client the current document
   liftIO
-    (WebSockets.sendTextData conn (Document.toLazyText document)
+    (WebSockets.sendTextData conn (Document.toText document)
       `onException` fireDisconnect)
 
   -- Create a new Event that corresponds to this client's input sent to the
