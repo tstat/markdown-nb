@@ -2,7 +2,6 @@
 
 module Document
   ( Document
-  , fromText
   , toText
   , applyDelta
     -- ** I/O
@@ -15,7 +14,8 @@ import Mitchell
 import Delta
 
 import Coerce (coerce)
-import Control.Lens (over) -- TODO: export from mitchell-stdlib
+import Cons (_head, _last)
+import Control.Lens (over, view) -- TODO: export from mitchell-stdlib
 import Control.Lens.Tuple -- TODO: export from mitchell-stdlib
 import File (FilePath, IOMode(ReadMode))
 import File.Text (hSetEncoding, utf8, withFile)
@@ -27,11 +27,6 @@ import qualified Yi.Rope as Yi
 newtype Document
   = Document YiString
   deriving newtype (Monoid, Semigroup)
-
-fromText :: Text -> Document
-fromText =
-  undefined
-  -- Document . Seq.fromList . Text.chunksOf 1024
 
 toText :: Document -> Text
 toText =
@@ -58,8 +53,29 @@ applyDelta_ delta rope =
           , zs
           ]
 
-    DeltaRemove _ ->
-      error "TODO: handle removes"
+    DeltaRemove Insert{start, end}->
+      let
+        (xs, (ys, zs)) =
+          Yi.splitAtLine (row start) rope
+            & over _2 (Yi.splitAtLine (row end - row start + 1))
+            & over (_2._1) (mconcat . f . Yi.lines')
+
+        f :: [YiString] -> [YiString]
+        f = \case
+          [] ->
+            error "zero rows"
+          [leg] ->
+            leg
+              & Yi.splitAt (column start)
+              & over _2 (Yi.splitAt (column end - column start))
+              & view (_1 <> _2._2)
+              & pure
+          legs ->
+            legs
+              & over _last (Yi.drop (column end))
+              & over _head (Yi.take (column start))
+      in
+        xs <> ys <> zs
 
 readFile :: MonadIO m => FilePath -> m Document
 readFile path =

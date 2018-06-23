@@ -3,6 +3,7 @@ packages: ., deps/mitchell-stdlib
 package mitchell-stdlib
   flags:
     +dep-aeson
+    +dep-lens
     +dep-reactive-banana
     +dep-safe-exceptions
     +dep-unix

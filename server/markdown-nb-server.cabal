@@ -12,6 +12,7 @@ executable markdown-db-server
     , yi-rope ^>= 0.11
 
   default-extensions:
+    BangPatterns
     BinaryLiterals
     ConstraintKinds
     DataKinds
