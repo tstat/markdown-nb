@@ -12,6 +12,7 @@
     "purescript-ace": "git://github.com/mitchellwrosen/purescript-ace#04bde0802175f5a6033617c513944b4807d03e07",
     "purescript-aff-coroutines": "^7.0.0",
     "purescript-effect": "^2.0.0",
+    "purescript-foreign-generic": "^7.0.0",
     "purescript-generics-rep": "^6.0.0",
     "purescript-halogen": "^4.0.0",
     "purescript-web-socket": "^1.0.0"

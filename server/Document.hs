@@ -54,7 +54,7 @@ applyDelta_ delta rope =
         mconcat
           [ xs
           , ys
-          , mconcat (((`Yi.snoc` '\n') . Yi.fromText) <$> Vector.toList lines)
+          , Yi.unlines (Yi.fromText <$> Vector.toList lines)
           , zs
           ]
 

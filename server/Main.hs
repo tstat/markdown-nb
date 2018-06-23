@@ -19,7 +19,7 @@ import Process (exitImmediately)
 import Text (pack)
 
 import qualified ByteString.Lazy as Lazy (ByteString)
-import qualified Json.Decode as Json (decodeStrict)
+import qualified Json.Decode as Json
 import qualified Json.Encode as Json (encode)
 import qualified Network.WebSockets as WebSockets
 import qualified Text.Partial
@@ -210,12 +210,12 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
         loop = do
           bytes :: ByteString <-
             WebSockets.receiveData conn
-          case Json.decodeStrict bytes of
-            Nothing -> do
+          case Json.eitherDecodeStrict bytes of
+            Left err -> do
               putStrLn
-                ("Failed to decode payload: " <>
+                ("Failed to decode payload: " <> pack err <> ": " <>
                   Text.Partial.decodeUtf8 bytes)
-            Just delta -> do
+            Right delta -> do
               fireDelta delta
               loop
 

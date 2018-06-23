@@ -46,18 +46,23 @@ derive instance genericAceOutput :: Generic AceOutput _
 instance showAceOutput :: Show AceOutput where
   show = genericShow
 
-type AceChange
-  = { action :: String -- "insert" or "remove"
-    , start ::
-        { row :: Int
-        , column :: Int
-        }
-    , end ::
-        { row :: Int
-        , column :: Int
-        }
-    , lines :: Array String
-    }
+newtype AceChange = AceChange
+  { action :: String -- "insert" or "remove"
+  , start ::
+      { row :: Int
+      , column :: Int
+      }
+  , end ::
+      { row :: Int
+      , column :: Int
+      }
+  , lines :: Array String
+  }
+
+derive instance genericAceChange :: Generic AceChange _
+
+instance showAceChange :: Show AceChange where
+  show = genericShow
 
 -- | The Ace component definition.
 aceComponent :: H.Component HH.HTML AceQuery AceInput AceOutput Aff
@@ -111,7 +116,7 @@ evalInitialize = do
       H.subscribe $
         H.eventSource
           (Session.onChange session)
-          (\change -> Just (OnChange change identity))
+          (\change -> Just (OnChange (AceChange change) identity))
 
 evalFinalize
   :: forall x.

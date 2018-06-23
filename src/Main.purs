@@ -14,6 +14,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log)
 import Foreign (F, Foreign, unsafeToForeign, readString)
+import Foreign.Generic (defaultOptions, genericEncodeJSON)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.VDom.Driver (runUI)
@@ -26,7 +27,9 @@ import RootComponent (NbOutput, NbQuery, ui)
 
 main :: Effect Unit
 main = do
-  connection <- WS.create "ws://echo.websocket.org" []
+  connection <-
+    -- WS.create "ws://echo.websocket.org" []
+    WS.create "ws://localhost:8600" []
 
   HA.runHalogenAff do
     body <- HA.awaitBody
@@ -80,5 +83,10 @@ wsConsumer query = CR.consumer \msg -> do
 wsSender :: WS.WebSocket -> CR.Consumer NbOutput Aff Unit
 wsSender socket =
   CR.consumer \change -> do
-    liftEffect (WS.sendString socket (show change)) -- TODO: toJson, not show
+    liftEffect
+      (WS.sendString
+        socket
+        (genericEncodeJSON
+          defaultOptions { unwrapSingleConstructors = true }
+          change))
     pure Nothing
