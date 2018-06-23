@@ -191,9 +191,11 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
     liftIO (WebSockets.acceptRequest pconn)
 
   -- Send the client the current document
+  {-
   liftIO
     (WebSockets.sendTextData conn (Document.toText document)
       `onException` fireDisconnect)
+  -}
 
   -- Create a new Event that corresponds to this client's input sent to the
   -- server.

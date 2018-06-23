@@ -1,16 +1,18 @@
 module Ace.AceComponent
   ( AceQuery(..)
   , AceOutput(..)
-  , AceChange
   , aceComponent
   ) where
 
 import Prelude
 
 import Ace as Ace
+import Ace.Document as Document
 import Ace.EditSession as Session
 import Ace.Editor as Editor
-import Ace.Types (Editor)
+import Ace.Range as Range
+import Ace.Types
+  (DocumentEvent(..), DocumentEventType(..), Editor, getColumn, getRow)
 import Data.Const (Const)
 import Data.Generic.Rep
 import Data.Generic.Rep.Show (genericShow)
@@ -32,37 +34,14 @@ type AceState
 data AceQuery a
   = Initialize a
   | Finalize a
-  | ApplyChange AceChange a
-  | OnChange AceChange (H.SubscribeStatus -> a)
+  | ApplyChange DocumentEvent a
+  | OnChange DocumentEvent (H.SubscribeStatus -> a)
 
 type AceInput
     = Unit
 
 data AceOutput
-  = Change AceChange
-
-derive instance genericAceOutput :: Generic AceOutput _
-
-instance showAceOutput :: Show AceOutput where
-  show = genericShow
-
-newtype AceChange = AceChange
-  { action :: String -- "insert" or "remove"
-  , start ::
-      { row :: Int
-      , column :: Int
-      }
-  , end ::
-      { row :: Int
-      , column :: Int
-      }
-  , lines :: Array String
-  }
-
-derive instance genericAceChange :: Generic AceChange _
-
-instance showAceChange :: Show AceChange where
-  show = genericShow
+  = Change DocumentEvent
 
 -- | The Ace component definition.
 aceComponent :: H.Component HH.HTML AceQuery AceInput AceOutput Aff
@@ -116,7 +95,7 @@ evalInitialize = do
       H.subscribe $
         H.eventSource
           (Session.onChange session)
-          (\change -> Just (OnChange (AceChange change) identity))
+          (\event -> Just (OnChange event identity))
 
 evalFinalize
   :: forall x.
@@ -129,28 +108,34 @@ evalFinalize next = do
   pure next
 
 evalApplyChange
-  :: AceChange
+  :: DocumentEvent
   -> HalogenM AceState AceQuery (Const Void) Void AceOutput Aff Unit
-evalApplyChange change = do
+evalApplyChange (DocumentEvent event) = do
   maybeEditor <- H.gets _.editor
   case maybeEditor of
     Nothing ->
       pure unit
-    Just editor -> do
-      -- TODO: Apply change to editor contents
-
-      -- current <- H.liftEffect $ Editor.getValue editor
-      -- when (text /= current) do
-      --   void $ H.liftEffect $ Editor.setValue text Nothing editor
-
-      pure unit
+    Just editor -> H.liftEffect do
+      session <- Editor.getSession editor
+      document <- Session.getDocument session
+      case event.action of
+        Insert ->
+          Document.insertLines (getRow event.start) event.lines document
+        Remove -> do
+          range <-
+            (Range.create
+              (getRow event.start)
+              (getColumn event.start)
+              (getRow event.end)
+              (getColumn event.end))
+          Document.remove range document
 
 evalOnChange
   :: forall x.
-     AceChange
+     DocumentEvent
   -> HalogenM AceState AceQuery (Const Void) Void AceOutput Aff H.SubscribeStatus
-evalOnChange change = do
-  H.raise (Change change)
+evalOnChange event = do
+  H.raise (Change event)
   pure H.Listening
 
 initializer :: Maybe (AceQuery Unit)

@@ -2,7 +2,8 @@ module RootComponent where
 
 import Prelude
 
-import Ace.AceComponent (AceOutput(..), AceQuery(..), AceChange, aceComponent)
+import Ace.AceComponent (AceOutput(..), AceQuery(..), aceComponent)
+import Ace.Types (DocumentEvent)
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -23,12 +24,13 @@ type NbState = { text :: String }
 -- | The query algebra for the app.
 data NbQuery a
   = HandleAceOutput AceOutput a
+  | HandleServerOutput DocumentEvent a
 
 type NbInput
   = Unit
 
 type NbOutput
-  = AceChange
+  = DocumentEvent
 
 -- | The slot address type for the Ace component.
 data AceSlot = AceSlot
@@ -66,18 +68,26 @@ render { text: text } =
     handleAceOuput output =
       Just (HandleAceOutput output unit)
 
-
 eval :: NbQuery ~> H.ParentDSL NbState NbQuery AceQuery AceSlot NbOutput Aff
 eval = case _ of
   HandleAceOutput output next -> do
     evalHandleAceOutput output
     pure next
+  HandleServerOutput output next -> do
+    evalHandleServerOutput output
+    pure next
 
 evalHandleAceOutput
   :: AceOutput
   -> H.ParentDSL NbState NbQuery AceQuery AceSlot NbOutput Aff Unit
-evalHandleAceOutput output = do
-  logShow output
-  case output of
+evalHandleAceOutput =
+  case _ of
     Change change ->
       H.raise change
+
+evalHandleServerOutput
+  :: DocumentEvent
+  -> H.ParentDSL NbState NbQuery AceQuery AceSlot NbOutput Aff Unit
+evalHandleServerOutput change = do
+  _ <- H.query AceSlot (ApplyChange change unit)
+  pure unit
