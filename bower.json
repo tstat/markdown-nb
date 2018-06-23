@@ -9,9 +9,10 @@
     "dist"
   ],
   "dependencies": {
-    "purescript-halogen": "^4.0.0",
-    "purescript-ace": "^5.0.0",
-    "purescript-effect": "^2.0.0"
+    "purescript-ace": "git://github.com/mitchellwrosen/purescript-ace#04bde0802175f5a6033617c513944b4807d03e07",
+    "purescript-effect": "^2.0.0",
+    "purescript-generics-rep": "^6.0.0",
+    "purescript-halogen": "^4.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"
