@@ -18,12 +18,17 @@ import Halogen.VDom.Driver (runUI)
 
 -- | The application state, which in this case just stores the current text in
 -- | the editor.
-type State = { text :: String }
+type NbState = { text :: String }
 
 -- | The query algebra for the app.
-data Query a
-  = ClearText a
-  | HandleAceOutput AceOutput a
+data NbQuery a
+  = HandleAceOutput AceOutput a
+
+type NbInput
+  = Unit
+
+type NbOutput
+  = AceChange
 
 -- | The slot address type for the Ace component.
 data AceSlot = AceSlot
@@ -31,7 +36,7 @@ derive instance eqAceSlot :: Eq AceSlot
 derive instance ordAceSlot :: Ord AceSlot
 
 -- | The main UI component definition.
-ui :: Component HTML Query Unit Void Aff
+ui :: Component HTML NbQuery Unit NbOutput Aff
 ui =
   H.parentComponent
     { initialState
@@ -40,23 +45,16 @@ ui =
     , receiver: const Nothing
     }
 
-initialState :: Unit -> State
+initialState :: Unit -> NbState
 initialState _ = { text: "" }
 
 render
-  :: State
-  -> HTML (ComponentSlot HTML AceQuery Aff AceSlot (Query Unit)) (Query Unit)
+  :: NbState
+  -> HTML (ComponentSlot HTML AceQuery Aff AceSlot (NbQuery Unit)) (NbQuery Unit)
 render { text: text } =
   HH.div_
     [ HH.h1_
         [ HH.text "ace editor" ]
-    , HH.div_
-        [ HH.p_
-            [ HH.button
-                [ HE.onClick (HE.input_ ClearText) ]
-                [ HH.text "Clear" ]
-            ]
-        ]
     , HH.div_
         [ HH.slot AceSlot aceComponent unit handleAceOuput ]
     , HH.p_
@@ -64,16 +62,22 @@ render { text: text } =
     ]
 
   where
-    handleAceOuput :: AceOutput -> Maybe (Query Unit)
+    handleAceOuput :: AceOutput -> Maybe (NbQuery Unit)
     handleAceOuput output =
       Just (HandleAceOutput output unit)
 
 
-eval :: Query ~> H.ParentDSL State Query AceQuery AceSlot Void Aff
-eval (ClearText next) = do
-  -- _ <- H.query AceSlot $ H.action (ChangeText "")
-  pure next
-eval (HandleAceOutput output next) = do
-  -- H.modify_ (_ { text = text })
+eval :: NbQuery ~> H.ParentDSL NbState NbQuery AceQuery AceSlot NbOutput Aff
+eval = case _ of
+  HandleAceOutput output next -> do
+    evalHandleAceOutput output
+    pure next
+
+evalHandleAceOutput
+  :: AceOutput
+  -> H.ParentDSL NbState NbQuery AceQuery AceSlot NbOutput Aff Unit
+evalHandleAceOutput output = do
   logShow output
-  pure next
+  case output of
+    Change change ->
+      H.raise change
