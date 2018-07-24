@@ -1,9 +1,9 @@
 {
   "private": true,
   "scripts": {
-    "build": "pulp build --to dist/app.js",
-    "watch": "pulp -w build --to dist/app.js",
-    "watch-fast": "webpack --entry ./entry.js --output-filename dist/app.js --progress --watch"
+    "build": "pulp build --to html/app.js",
+    "watch": "pulp -w build --to html/app.js",
+    "watch-fast": "webpack --entry ./entry.js --output-filename html/app.js --progress --watch"
   },
   "devDependencies": {
     "pulp": "^12.0.1",

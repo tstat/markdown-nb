@@ -42,21 +42,22 @@ main = do
   HA.runHalogenAff do
     body <- HA.awaitBody
     io <- runUI ui unit body
+    pure unit
 
-    -- Forward all output from the root component to the server.
-    io.subscribe
-      (transform (genericEncodeJSON opts)
-        ~$ wsConsumer connection)
+    -- -- Forward all output from the root component to the server.
+    -- io.subscribe
+    --   (transform (genericEncodeJSON opts)
+    --     ~$ wsConsumer connection)
 
-    CR.runProcess
-      (wsProducer connection $$
-        forever do
-          s <- await
-          case runExcept (genericDecodeJSON opts s) of
-            Left _ ->
-              unsafeThrow "bad server json"
-            Right change ->
-              lift (io.query (HandleServerOutput change unit)))
+    -- CR.runProcess
+    --   (wsProducer connection $$
+    --     forever do
+    --       s <- await
+    --       case runExcept (genericDecodeJSON opts s) of
+    --         Left _ ->
+    --           unsafeThrow "bad server json"
+    --         Right change ->
+    --           lift (io.query (HandleServerOutput change unit)))
 
 -- A producer coroutine that emits messages that arrive from the websocket.
 wsProducer :: WebSocket -> Producer String Aff Unit

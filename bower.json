@@ -9,7 +9,6 @@
     "dist"
   ],
   "dependencies": {
-    "purescript-ace": "git://github.com/mitchellwrosen/purescript-ace#af65866a6157ddfc24c9891cb0c7727477603d12",
     "purescript-aff-coroutines": "^7.0.0",
     "purescript-effect": "^2.0.0",
     "purescript-exceptions": "^4.0.0",
