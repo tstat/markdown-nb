@@ -24,14 +24,14 @@ type NbState = { text :: String }
 
 -- | The query algebra for the app.
 data NbQuery a
-  = EditorTextChange String a
-  | HandleServerOutput a
+  = EditorTextChange Editor.DocumentChange a
+  | HandleServerOutput Editor.DocumentChange a
 
 type NbInput
   = Unit
 
 type NbOutput
-  = Void
+  = Editor.Message
 
 -- | The main UI component definition.
 ui :: Component HTML NbQuery Unit NbOutput Aff
@@ -53,19 +53,19 @@ render { text: text } =
   HH.div_
     [ HH.h1_ [ HH.text "Neckbeards" ]
     , HH.div_
-        [ HH.slot Editor.Slot Editor.ui unit handleEditorMessage ]
+        [ HH.slot Editor.Slot Editor.ui "" handleEditorMessage ]
     , HH.p_
         [ HH.text ("Current text: " <> text) ]
     ]
 
 eval :: NbQuery ~> H.HalogenM NbState NbQuery Editor.QueryF Editor.Slot NbOutput Aff
 eval = case _ of
-  HandleServerOutput next -> do
+  HandleServerOutput dc next -> do
     pure next
-  EditorTextChange str next -> do
-    log str
-    _ <- H.query Editor.Slot (Editor.SetText str unit)
+  EditorTextChange dc next -> do
+    H.raise (Editor.DocumentUpdate dc)
+    _ <- H.query Editor.Slot (Editor.SetText "" unit)
     pure next
 
 handleEditorMessage :: Editor.Message -> Maybe (NbQuery Unit)
-handleEditorMessage (Editor.TextChange str) = HE.input EditorTextChange str
+handleEditorMessage (Editor.DocumentUpdate dc) = HE.input EditorTextChange dc

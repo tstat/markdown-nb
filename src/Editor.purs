@@ -4,7 +4,14 @@ import Prelude
 
 import Control.Monad.Maybe.Trans (MaybeT(..), runMaybeT)
 import Control.Monad.Trans.Class (lift)
+import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson
+                     , caseJsonObject, caseJsonString, fromString, (.?)
+                     , (~>), jsonEmptyObject, (:=), encodeJson
+                     )
+import Foreign.Object (Object)
 import Data.Const (Const)
+import Data.Either (Either(..))
+import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe(..))
 import Data.Maybe (maybe)
 import Data.String as String
@@ -41,36 +48,75 @@ data QueryF a
   | SetText String a
 
 type Input
-  = Unit
+  = String
+
+data DocumentChange
+  = Insertion Int String
+  | Deletion Int Int
 
 data Message
-  = TextChange String
+  = DocumentUpdate DocumentChange
+
+instance decodeDocumentChange :: DecodeJson DocumentChange where
+  decodeJson = caseJsonObject (Left "Expected an Object") $ \o ->
+    o .? "type" >>= case _ of
+      "insertion" -> parseInsertion o
+      "deletion" -> parseDeletion o
+      b -> Left $ "Could not recognize type: " <> b
+    where
+      parseInsertion :: Object Json -> Either String DocumentChange
+      parseInsertion o = Insertion
+        <$> o .? "pos"
+        <*> o .? "content"
+
+      parseDeletion :: Object Json -> Either String DocumentChange
+      parseDeletion o = Deletion
+        <$> o .? "pos"
+        <*> o .? "length"
+
+instance encodeDocumentChange :: EncodeJson DocumentChange where
+  encodeJson (Deletion k n) =
+       "type"   := "deletion"
+    ~> "pos"    := k
+    ~> "length" := n
+    ~> jsonEmptyObject
+  encodeJson (Insertion k str) =
+       "type"    := "insertion"
+    ~> "pos"     := k
+    ~> "content" := str
+    ~> jsonEmptyObject
+
+instance decodeMessage :: DecodeJson Message where
+  decodeJson = map DocumentUpdate <<< decodeJson
+
+instance encodeMessage :: EncodeJson Message where
+  encodeJson (DocumentUpdate x) = encodeJson x
 
 data Slot = Slot
 derive instance eqEditorSlot :: Eq Slot
 derive instance ordEditSort :: Ord Slot
 
-ui :: Component HTML QueryF Unit Message Aff
+ui :: Component HTML QueryF String Message Aff
 ui =
   H.component
     { initialState
     , render
     , eval
-    , receiver: const Nothing
+    , receiver: HE.input SetText
     }
 
-initialState :: Unit -> State
-initialState _ = { text: "" }
+initialState :: String -> State
+initialState txt = { text: txt }
 
 render
   :: State
   -> HTML Void (QueryF Unit)
-render { text: text } =
+render st =
   HH.textarea
   [ HE.onKeyDown (HE.input HandleKeyDown)
   , HE.onPaste (HE.input HandlePaste)
   , HP.ref textAreaRefLabel
-  , HP.value text
+  , HP.value st.text
   ]
 
 eval :: QueryF ~> H.HalogenM State QueryF (Const Void) Void Message Aff
@@ -95,7 +141,7 @@ runKeyDown kev = do
   liftEffect $ preventDefault $ Keyboard.toEvent kev
   i <- lift <<< justOrError =<< runMaybeT cursorPosition
   st <- H.get
-  H.raise $ TextChange $ newText st.text (Keyboard.key kev) i
+  H.raise $ DocumentUpdate $ docUpdate i (Keyboard.key kev)
   pure unit
 
 cursorPosition :: MaybeT (H.HalogenM State QueryF (Const Void) Void Message Aff) Int
@@ -119,15 +165,11 @@ shouldInsert kev = str == "Backspace"
     str :: String
     str = Keyboard.key kev
 
-newText :: String -> String -> Int -> String
-newText orig k i = case k of
-  -- There doesn't seem to be a 'dropEnd' in "Data.String"?
-  "Backspace" -> let { before, after } = String.splitAt (i-1) orig
-                 in before <> String.drop 1 after
-  "Delete" -> let { before, after } = String.splitAt i orig
-              in before <> String.drop 1 after
-  k -> let { before, after } = String.splitAt i orig
-       in before <> k <> after
+docUpdate :: Int -> String -> DocumentChange
+docUpdate i = case _ of
+  "Backspace" -> Deletion (i-1) 1
+  "Delete"    -> Deletion i 1
+  k           -> Insertion i k
 
 textAreaRefLabel :: H.RefLabel
 textAreaRefLabel = H.RefLabel "textarea"
