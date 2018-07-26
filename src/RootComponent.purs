@@ -24,7 +24,7 @@ type NbState = { text :: String }
 
 -- | The query algebra for the app.
 data NbQuery a
-  = HandleTextChange a
+  = EditorTextChange String a
   | HandleServerOutput a
 
 type NbInput
@@ -53,7 +53,7 @@ render { text: text } =
   HH.div_
     [ HH.h1_ [ HH.text "Neckbeards" ]
     , HH.div_
-        [ HH.slot Editor.Slot Editor.ui unit (const Nothing) ]
+        [ HH.slot Editor.Slot Editor.ui unit handleEditorMessage ]
     , HH.p_
         [ HH.text ("Current text: " <> text) ]
     ]
@@ -62,5 +62,10 @@ eval :: NbQuery ~> H.HalogenM NbState NbQuery Editor.QueryF Editor.Slot NbOutput
 eval = case _ of
   HandleServerOutput next -> do
     pure next
-  HandleTextChange next -> do
+  EditorTextChange str next -> do
+    log str
+    _ <- H.query Editor.Slot (Editor.SetText str unit)
     pure next
+
+handleEditorMessage :: Editor.Message -> Maybe (NbQuery Unit)
+handleEditorMessage (Editor.TextChange str) = HE.input EditorTextChange str
