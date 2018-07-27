@@ -43,12 +43,9 @@ main = do
   HA.runHalogenAff do
     body <- HA.awaitBody
     io <- runUI ui unit body
-    pure unit
 
     -- Forward all output from the root component to the server.
-    io.subscribe
-      (transform encodeJson
-        ~$ wsConsumer connection)
+    io.subscribe (wsConsumer connection)
 
     CR.runProcess
       (wsProducer connection $$
@@ -94,8 +91,8 @@ wsConsumer query = CR.consumer \msg -> do
 
 -- A consumer coroutine that takes output messages from our component IO and
 -- sends them using the websocket
-wsConsumer :: WebSocket -> Consumer Json Aff Unit
+wsConsumer :: WebSocket -> Consumer Editor.Message Aff Unit
 wsConsumer socket =
   forever do
     s <- await
-    liftEffect $ WS.sendString socket $ stringify s
+    liftEffect $ WS.sendString socket $ stringify $ encodeJson s
