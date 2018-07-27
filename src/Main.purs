@@ -38,7 +38,7 @@ import RootComponent (NbOutput, NbQuery(..), ui)
 main :: Effect Unit
 main = do
   connection <-
-    WS.create "ws://localhost:8600" []
+    WS.create "ws://0.0.0.0:8600" []
 
   HA.runHalogenAff do
     body <- HA.awaitBody
@@ -77,8 +77,6 @@ wsProducer socket = CRA.produce \emitter -> do
 eitherToMaybe :: forall a b. Either a b -> Maybe b
 eitherToMaybe = either (const Nothing) Just
 
-
-
 {-
 -- A consumer coroutine that takes the `query` function from our component IO
 -- record and sends `AddMessage` queries in when it receives inputs from the
@@ -91,7 +89,7 @@ wsConsumer query = CR.consumer \msg -> do
 
 -- A consumer coroutine that takes output messages from our component IO and
 -- sends them using the websocket
-wsConsumer :: WebSocket -> Consumer Editor.Message Aff Unit
+wsConsumer :: WebSocket -> Consumer Editor.DocumentChange Aff Unit
 wsConsumer socket =
   forever do
     s <- await

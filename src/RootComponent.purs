@@ -21,7 +21,7 @@ import Editor as Editor
 
 -- | The application state, which in this case just stores the current text in
 -- | the editor.
-type NbState = { text :: String }
+type NbState = Unit
 
 -- | The query algebra for the app.
 data NbQuery a
@@ -32,7 +32,7 @@ type NbInput
   = Unit
 
 type NbOutput
-  = Editor.Message
+  = Editor.DocumentChange
 
 -- | The main UI component definition.
 ui :: Component HTML NbQuery Unit NbOutput Aff
@@ -45,37 +45,29 @@ ui =
     }
 
 initialState :: Unit -> NbState
-initialState _ = { text: "" }
+initialState _ = unit
 
 render
   :: NbState
   -> ParentHTML NbQuery Editor.QueryF Editor.Slot Aff
-render { text: text } =
+render _ =
   HH.div_
     [ HH.h1_ [ HH.text "Neckbeards" ]
     , HH.div_
         [ HH.slot Editor.Slot Editor.ui "" handleEditorMessage ]
     , HH.p_
-        [ HH.text ("Current text: " <> text) ]
+        [ HH.text ("Current text: ") ]
     ]
 
 eval :: NbQuery ~> H.HalogenM NbState NbQuery Editor.QueryF Editor.Slot NbOutput Aff
 eval = case _ of
   HandleServerOutput dc next -> do
-    st <- H.get
-    let newStr = calcNewString st.text dc
-    H.modify_ (_ { text = newStr })
-    _ <- H.query Editor.Slot (Editor.SetText newStr unit)
+    _ <- H.query Editor.Slot (Editor.ApplyChange dc unit)
     pure next
   EditorTextChange dc next -> do
-    H.raise (Editor.DocumentUpdate dc)
+    H.raise dc
     pure next
-
-calcNewString :: String -> Editor.DocumentChange -> String
-calcNewString orig (Editor.Insertion i str) = let { before, after } = String.splitAt i orig
-                                              in before <> str <> after
-calcNewString orig (Editor.Deletion i k) = let { before, after } = String.splitAt i orig
-                                           in before <> String.drop k after
 
 handleEditorMessage :: Editor.Message -> Maybe (NbQuery Unit)
 handleEditorMessage (Editor.DocumentUpdate dc) = HE.input EditorTextChange dc
+handleEditorMessage (Editor.NewContent str) = Nothing
