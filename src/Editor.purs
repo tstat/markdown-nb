@@ -160,6 +160,7 @@ justOrError (Just a) = pure a
 shouldInsert :: KeyboardEvent -> Boolean
 shouldInsert kev = str == "Backspace"
   || str == "Delete"
+  || str == "Enter"
   || String.length str == 1
   where
     str :: String
@@ -169,6 +170,7 @@ docUpdate :: Int -> String -> DocumentChange
 docUpdate i = case _ of
   "Backspace" -> Deletion (i-1) 1
   "Delete"    -> Deletion i 1
+  "Enter"     -> Insertion i "\n"
   k           -> Insertion i k
 
 textAreaRefLabel :: H.RefLabel
