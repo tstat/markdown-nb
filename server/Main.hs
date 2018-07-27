@@ -11,7 +11,8 @@ import qualified Document
 
 import Concurrency (killThread)
 import Environment (getArgs)
-import Exception (ExitCode(..), exitFailure, finally, onException)
+import Exception
+  (Exception(..), ExitCode(..), exitFailure, finally, mapException, onException)
 import File (FilePath)
 import FRP
 import Network.WebSockets (Connection, PendingConnection)
@@ -93,6 +94,25 @@ deleteClient x = \case
     y : deleteClient x ys
 
 --------------------------------------------------------------------------------
+-- Exceptions
+--------------------------------------------------------------------------------
+
+data RecvError
+  = RecvError !ClientId !WebSockets.ConnectionException
+  deriving Show
+instance Exception RecvError where
+
+data SendError
+  = SendError !ClientId !WebSockets.ConnectionException
+  deriving Show
+instance Exception SendError
+
+data DecodeError
+  = DecodeError !ClientId ![Char] !ByteString
+  deriving Show
+instance Exception DecodeError
+
+--------------------------------------------------------------------------------
 -- Main event network logic
 --------------------------------------------------------------------------------
 
@@ -162,7 +182,7 @@ moment file ePendingClient = mdo
       valueB bClients
     pure $
       traverse_
-        (\client ->
+        (\client -> do
           clientSend client (Json.encode delta)
             `onException` fireDisconnect (clientId client))
         clients
@@ -205,30 +225,26 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
   -- In a background thread, forward all input from the connected client to its
   -- Event. If receiving fails, fire a disconnect into the network and kill the
   -- server thread.
-  (liftIO . void . forkIO)
-    (do
-      let
-        loop :: IO ()
-        loop = do
-          bytes :: ByteString <-
-            WebSockets.receiveData conn
-          case Json.eitherDecodeStrict bytes of
-            Left err -> do
-              putStrLn
-                ("Failed to decode payload: " <> pack err <> ": " <>
-                  Text.Partial.decodeUtf8 bytes)
-            Right delta -> do
-              fireDelta delta
-              loop
+  (liftIO . void . forkIO) $ do
+    let
+      recv :: IO ()
+      recv = do
+        bytes :: ByteString <-
+          mapException (RecvError cid) (WebSockets.receiveData conn)
+        case Json.eitherDecodeStrict bytes of
+          Left err ->
+            throwIO (DecodeError cid err bytes)
+          Right delta ->
+            fireDelta delta
 
-      loop `finally` do
-        fireDisconnect
-        killThread tid)
+    forever recv `finally` do
+      fireDisconnect
+      killThread tid
 
   pure Client
     { clientId = cid
     , clientInput = eDelta
-    , clientSend = WebSockets.sendTextData conn
+    , clientSend = mapException (SendError cid) (WebSockets.sendTextData conn)
     }
 
 on :: Event a -> (a -> Moment (IO ())) -> MomentIO ()

@@ -2,9 +2,8 @@
 
 module Delta
   ( Delta(..)
-  , Insert(..)
-  , Remove
-  , Loc(..)
+  , Insertion(..)
+  , Deletion(..)
   ) where
 
 import Mitchell
@@ -13,7 +12,6 @@ import Json.Decode
 import Json.Encode
 import Monad.Fail (fail)
 import Text (unpack)
-import Vector (Vector)
 
 import qualified Map.Hash
 
@@ -22,19 +20,19 @@ import qualified Map.Hash
 --------------------------------------------------------------------------------
 
 data Delta
-  = DeltaInsert Insert
-  | DeltaRemove Remove
+  = DeltaInsert Insertion
+  | DeltaRemove Deletion
   deriving (Show)
 
 instance FromJSON Delta where
   parseJSON :: Value -> Parser Delta
   parseJSON =
     withObject "delta" $ \o ->
-      o .: "action" >>=
-        withText "action" (\case
-          "insert" ->
+      o .: "type" >>=
+        withText "type" (\case
+          "insertion" ->
             DeltaInsert <$> parseJSON (Object o)
-          "remove" ->
+          "deletion" ->
             DeltaRemove <$> parseJSON (Object o)
           s ->
             fail ("unknown action: " ++ unpack s))
@@ -44,42 +42,34 @@ instance ToJSON Delta where
   toJSON :: Delta -> Value
   toJSON = \case
     DeltaInsert x ->
-      go "insert" x
+      go "insertion" x
     DeltaRemove x ->
-      go "remove" x
+      go "deletion" x
    where
     go :: ToJSON a => Value -> a -> Value
     go s x =
       case toJSON x of
         Object o ->
-          Object (Map.Hash.insert "action" s o)
+          Object (Map.Hash.insert "type" s o)
         _ ->
           error "impossible"
 
 --------------------------------------------------------------------------------
--- Insert
+-- Insertion
 --------------------------------------------------------------------------------
 
-data Insert = Insert
-  { start :: !Loc
-  , end   :: !Loc
-  , lines :: !(Vector Text)
+data Insertion = Insertion
+  { pos :: !Int
+  , content :: !Text
   } deriving anyclass (FromJSON, ToJSON)
     deriving stock (Show, Generic)
 
 --------------------------------------------------------------------------------
--- Remove
+-- Deletion
 --------------------------------------------------------------------------------
 
-type Remove
-  = Insert
-
---------------------------------------------------------------------------------
--- Loc
---------------------------------------------------------------------------------
-
-data Loc = Loc
-  { row    :: !Int
-  , column :: !Int
-  } deriving anyclass (FromJSON, ToJSON)
-    deriving stock (Generic, Show)
+data Deletion = Deletion
+  { pos :: !Int
+  , len :: !Int
+  } deriving stock (Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)

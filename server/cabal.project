@@ -5,8 +5,8 @@ package mitchell-stdlib
     +dep-aeson
     +dep-lens
     +dep-reactive-banana
-    +dep-safe-exceptions
     +dep-unix
+    +dep-unliftio
     +dep-unordered-containers
     +dep-vector
 

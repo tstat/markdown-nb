@@ -14,14 +14,12 @@ import Mitchell
 import Delta
 
 import Coerce (coerce)
-import Cons (_head, _last)
-import Control.Lens (over, view) -- TODO: export from mitchell-stdlib
+import Control.Lens (over) -- TODO: export from mitchell-stdlib
 import Control.Lens.Tuple -- TODO: export from mitchell-stdlib
 import File (FilePath, IOMode(ReadMode))
 import File.Text (hSetEncoding, utf8, withFile)
 import Yi.Rope (YiString)
 
-import qualified Vector
 import qualified Yi.Rope as Yi
 
 newtype Document
@@ -40,42 +38,24 @@ applyDelta =
 applyDelta_ :: Delta -> YiString -> YiString
 applyDelta_ delta rope =
   case delta of
-    DeltaInsert Insert{start = Loc{row, column}, lines} ->
+    DeltaInsert Insertion{pos, content} ->
       let
-        (xs, (ys, zs)) =
-          Yi.splitAtLine row rope
-            & over _2 (Yi.splitAt column)
+        (xs, ys) =
+          Yi.splitAt pos rope
       in
         mconcat
           [ xs
+          , Yi.fromText content
           , ys
-          , Yi.unlines (Yi.fromText <$> Vector.toList lines)
-          , zs
           ]
 
-    DeltaRemove Insert{start, end}->
+    DeltaRemove Deletion{pos, len}->
       let
-        (xs, (ys, zs)) =
-          Yi.splitAtLine (row start) rope
-            & over _2 (Yi.splitAtLine (row end - row start + 1))
-            & over (_2._1) (mconcat . f . Yi.lines')
-
-        f :: [YiString] -> [YiString]
-        f = \case
-          [] ->
-            error "zero rows"
-          [leg] ->
-            leg
-              & Yi.splitAt (column start)
-              & over _2 (Yi.splitAt (column end - column start))
-              & view (_1 <> _2._2)
-              & pure
-          legs ->
-            legs
-              & over _last (Yi.drop (column end))
-              & over _head (Yi.take (column start))
+        (xs, (_, ys)) =
+          Yi.splitAt pos rope
+            & over _2 (Yi.splitAt len)
       in
-        xs <> ys <> zs
+        xs <> ys
 
 readFile :: MonadIO m => FilePath -> m Document
 readFile path =
