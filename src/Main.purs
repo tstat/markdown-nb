@@ -2,7 +2,6 @@ module Main where
 
 import Prelude
 
-import Data.Argonaut (stringify, encodeJson, decodeJson, Json, jsonParser)
 import Control.Bind (bind)
 import Control.Coroutine
   (Consumer, Producer, Transformer, ($$), (~$), await, consumer, transform,
@@ -13,9 +12,11 @@ import Control.Coroutine.Aff as CRA
 import Control.Monad.Except (runExcept)
 import Control.Monad.Rec.Class (forever)
 import Control.Monad.Trans.Class (lift)
+import Data.Argonaut (stringify, encodeJson, decodeJson, Json, jsonParser)
 import Data.Either (Either(..), either)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
+import Editor as Editor
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -49,34 +50,37 @@ main = do
       (transform encodeJson
         ~$ wsConsumer connection)
 
-    -- CR.runProcess
-    --   (wsProducer connection $$
-    --     forever do
-    --       s <- await
-    --       case runExcept (decodeJson s) of
-    --         Left _ ->
-    --           unsafeThrow "bad server json"
-    --         Right change ->
-    --           lift (io.query (HandleServerOutput change unit)))
+    CR.runProcess
+      (wsProducer connection $$
+        forever do
+          s <- await
+          case decodeJson s of
+            Left err ->
+              unsafeThrow $ "Bad server json: " <> err
+            Right change ->
+              lift (io.query (HandleServerOutput change unit)))
 
 -- A producer coroutine that emits messages that arrive from the websocket.
--- wsProducer :: WebSocket -> Producer Json Aff Unit
--- wsProducer socket = CRA.produce \emitter -> do
---   listener <- EET.eventListener \ev -> do
---     for_ (ME.fromEvent ev) \msgEvent ->
---       for_ (readHelper (map (flip bind jsonParser) <<< readString) (ME.data_ msgEvent)) \msg ->
---         emit emitter msg
---   EET.addEventListener
---     WSET.onMessage
---     listener
---     false
---     (WS.toEventTarget socket)
---   where
---     readHelper :: forall a b. (Foreign -> F a) -> b -> Maybe a
---     readHelper read =
---       either (const Nothing) Just <<< runExcept <<< read <<< unsafeToForeign
+wsProducer :: WebSocket -> Producer Json Aff Unit
+wsProducer socket = CRA.produce \emitter -> do
+  listener <- EET.eventListener \ev -> do
+    for_ (ME.fromEvent ev) \msgEvent ->
+      for_ (readHelper (map (eitherToMaybe <<< jsonParser) <<< readString) (ME.data_ msgEvent)) \msg ->
+        emit emitter msg
+  EET.addEventListener
+    WSET.onMessage
+    listener
+    false
+    (WS.toEventTarget socket)
+  where
+    readHelper :: forall a b. (Foreign -> F (Maybe a)) -> b -> Maybe a
+    readHelper read =
+      either (const Nothing) identity <<< runExcept <<< read <<< unsafeToForeign
 
---     readJson :: Foreign -> Maybe Json
+eitherToMaybe :: forall a b. Either a b -> Maybe b
+eitherToMaybe = either (const Nothing) Just
+
+
 
 {-
 -- A consumer coroutine that takes the `query` function from our component IO
