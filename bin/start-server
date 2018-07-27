@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 tmux new-session -n "markdown-nb" -d
-tmux send-keys -t 0 "npm run watch" C-m
-tmux new-window -n "web server"
+tmux send-keys -t 0 "nix-shell --run 'npm run watch'" C-m
+tmux new-window -n "web server" -c "html"
 tmux send-keys -t 1 "python -m http.server 8000" C-m
 tmux -2 attach-session -d

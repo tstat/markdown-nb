@@ -11,7 +11,6 @@
   "dependencies": {
     "purescript-aff-coroutines": "^7.0.0",
     "purescript-argonaut": "^4.0.1",
-    "purescript-argonaut-core": "^4.0.1",
     "purescript-effect": "^2.0.0",
     "purescript-exceptions": "^4.0.0",
     "purescript-foreign-generic": "^7.0.0",
