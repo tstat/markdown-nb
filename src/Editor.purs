@@ -72,13 +72,13 @@ instance decodeDocumentChange :: DecodeJson DocumentChange where
       parseDeletion :: Object Json -> Either String DocumentChange
       parseDeletion o = Deletion
         <$> o .? "pos"
-        <*> o .? "length"
+        <*> o .? "len"
 
 instance encodeDocumentChange :: EncodeJson DocumentChange where
   encodeJson (Deletion k n) =
        "type"   := "deletion"
     ~> "pos"    := k
-    ~> "length" := n
+    ~> "len" := n
     ~> jsonEmptyObject
   encodeJson (Insertion k str) =
        "type"    := "insertion"
