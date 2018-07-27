@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Const (Const)
 import Data.Maybe (Maybe(..))
+import Data.String as String
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -61,11 +62,20 @@ render { text: text } =
 eval :: NbQuery ~> H.HalogenM NbState NbQuery Editor.QueryF Editor.Slot NbOutput Aff
 eval = case _ of
   HandleServerOutput dc next -> do
+    st <- H.get
+    let newStr = calcNewString st.text dc
+    H.modify_ (_ { text = newStr })
+    _ <- H.query Editor.Slot (Editor.SetText newStr unit)
     pure next
   EditorTextChange dc next -> do
     H.raise (Editor.DocumentUpdate dc)
-    _ <- H.query Editor.Slot (Editor.SetText "" unit)
     pure next
+
+calcNewString :: String -> Editor.DocumentChange -> String
+calcNewString orig (Editor.Insertion i str) = let { before, after } = String.splitAt i orig
+                                              in before <> str <> after
+calcNewString orig (Editor.Deletion i k) = let { before, after } = String.splitAt i orig
+                                           in before <> String.drop k after
 
 handleEditorMessage :: Editor.Message -> Maybe (NbQuery Unit)
 handleEditorMessage (Editor.DocumentUpdate dc) = HE.input EditorTextChange dc
