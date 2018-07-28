@@ -47,6 +47,7 @@ data QueryF a
   = HandleKeyDown KeyboardEvent a
   | HandlePaste ClipboardEvent a
   | ApplyChange DocumentChange a
+  | SetContents String a
 
 type Input
   = String
@@ -66,23 +67,6 @@ documentChangeLen (Deletion _ i ) = i
 data Message
   = DocumentUpdate DocumentChange
   | NewContent String
-
-instance decodeDocumentChange :: DecodeJson DocumentChange where
-  decodeJson = caseJsonObject (Left "Expected an Object") $ \o ->
-    o .? "type" >>= case _ of
-      "insertion" -> parseInsertion o
-      "deletion" -> parseDeletion o
-      b -> Left $ "Could not recognize type: " <> b
-    where
-      parseInsertion :: Object Json -> Either String DocumentChange
-      parseInsertion o = Insertion
-        <$> o .? "pos"
-        <*> o .? "content"
-
-      parseDeletion :: Object Json -> Either String DocumentChange
-      parseDeletion o = Deletion
-        <$> o .? "pos"
-        <*> o .? "len"
 
 instance encodeDocumentChange :: EncodeJson DocumentChange where
   encodeJson (Deletion k n) =
@@ -136,6 +120,9 @@ eval = case _ of
     pure next
   ApplyChange dc next -> do
     applyChange dc
+    pure next
+  SetContents str next -> do
+    H.put { text: str }
     pure next
 
 applyChange

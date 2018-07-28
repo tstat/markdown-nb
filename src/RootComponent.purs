@@ -2,7 +2,10 @@ module RootComponent where
 
 import Prelude
 
-import Data.Argonaut (class DecodeJson)
+import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson
+                     , caseJsonObject, caseJsonString, fromString, (.?)
+                     , (~>), jsonEmptyObject, (:=), encodeJson
+                     )
 import Data.Const (Const)
 import Data.Either
 import Data.Maybe (Maybe(..))
@@ -11,6 +14,7 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log, logShow)
+import Foreign.Object (Object)
 import Halogen (ParentHTML, Component)
 import Halogen as H
 import Halogen.Aff as HA
@@ -41,9 +45,28 @@ data ServerOutput
   | ServerOutputDelta Editor.DocumentChange
     -- ^ A document delta.
 
--- TODO decodeJsonServerOutput
 instance decodeJsonServerOutput :: DecodeJson ServerOutput where
-  decodeJson _ = Left "TODO"
+  decodeJson =
+    caseJsonObject (Left "Expected an Object") $ \o ->
+      o .? "type" >>= case _ of
+        "contents" -> ServerOutputContents <$> parseContents o
+        "insertion" -> ServerOutputDelta <$> parseInsertion o
+        "deletion" -> ServerOutputDelta <$> parseDeletion o
+        b -> Left $ "Could not recognize type: " <> b
+      where
+        parseContents :: Object Json -> Either String String
+        parseContents o =
+          o .? "contents"
+
+        parseInsertion :: Object Json -> Either String Editor.DocumentChange
+        parseInsertion o = Editor.Insertion
+          <$> o .? "pos"
+          <*> o .? "content"
+
+        parseDeletion :: Object Json -> Either String Editor.DocumentChange
+        parseDeletion o = Editor.Deletion
+          <$> o .? "pos"
+          <*> o .? "len"
 
 type NbInput
   = Unit
@@ -80,7 +103,9 @@ eval :: NbQuery ~> H.HalogenM NbState NbQuery Editor.QueryF Editor.Slot NbOutput
 eval = case _ of
   HandleServerOutput so next -> do
     case so of
-      ServerOutputContents _ -> pure unit
+      ServerOutputContents str -> do
+         _ <- H.query Editor.Slot (Editor.SetContents str unit)
+         pure unit
       ServerOutputDelta dc -> do
         _ <- H.query Editor.Slot (Editor.ApplyChange dc unit)
         pure unit

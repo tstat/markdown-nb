@@ -15,15 +15,15 @@ import Exception
   (Exception(..), ExitCode(..), exitFailure, finally, mapException, onException)
 import File (FilePath)
 import FRP
+import Json.Encode ((.=))
 import Network.WebSockets (Connection, PendingConnection)
 import Process (exitImmediately)
 import Text (pack)
 
 import qualified ByteString.Lazy as Lazy (ByteString)
 import qualified Json.Decode as Json
-import qualified Json.Encode as Json (encode)
+import qualified Json.Encode as Json (encode, object)
 import qualified Network.WebSockets as WebSockets
-import qualified Text.Partial
 
 --------------------------------------------------------------------------------
 -- main
@@ -85,13 +85,28 @@ data Client = Client
   }
 
 deleteClient :: ClientId -> [Client] -> [Client]
-deleteClient x = \case
-  [] ->
-    []
-  y:ys | x == clientId y ->
-    ys
-  y:ys ->
-    y : deleteClient x ys
+deleteClient x =
+  deleteIf (\c -> clientId c == x)
+
+-- Delete the first element for which a predicate returns true.
+deleteIf :: (a -> Bool) -> [a] -> [a]
+deleteIf p =
+  para $ \case
+    NilF -> []
+    ConsF x (xs, ys)
+      | p x -> xs
+      | otherwise -> x : ys
+
+-- List paramorphism.
+para :: (ListF a ([a], r) -> r) -> [a] -> r
+para f = \case
+  [] -> f NilF
+  x:xs -> f (ConsF x (xs, para f xs))
+
+data ListF a r
+  = NilF
+  | ConsF a r
+  deriving Functor
 
 --------------------------------------------------------------------------------
 -- Exceptions
@@ -211,12 +226,13 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
     liftIO (WebSockets.acceptRequest pconn)
 
   -- Send the client the current document
-  -- TODO: Make this json & match ServerOutput in client
-  {-
   liftIO
-    (WebSockets.sendTextData conn (Document.toText document)
+    (WebSockets.sendTextData conn
+      (Json.encode (Json.object
+        [ "type"     .= ("contents" :: Text)
+        , "contents" .= Document.toText document
+        ]))
       `onException` fireDisconnect)
-  -}
 
   -- Create a new Event that corresponds to this client's input sent to the
   -- server.
