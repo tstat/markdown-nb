@@ -26,7 +26,15 @@ type NbState = { text :: String }
 -- | The query algebra for the app.
 data NbQuery a
   = EditorTextChange Editor.DocumentChange a
-  | HandleServerOutput Editor.DocumentChange a
+  | HandleServerOutput ServerOutput a
+
+-- | The type of blob that is sent to the server.
+type ServerInput
+  = Editor.Message
+
+-- | The type of blob that comes from the server.
+type ServerOutput
+  = Editor.DocumentChange
 
 type NbInput
   = Unit
