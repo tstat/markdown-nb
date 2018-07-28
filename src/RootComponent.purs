@@ -2,7 +2,9 @@ module RootComponent where
 
 import Prelude
 
+import Data.Argonaut (class DecodeJson)
 import Data.Const (Const)
+import Data.Either
 import Data.Maybe (Maybe(..))
 import Data.String as String
 import Effect (Effect)
@@ -33,8 +35,15 @@ type ServerInput
   = Editor.Message
 
 -- | The type of blob that comes from the server.
-type ServerOutput
-  = Editor.DocumentChange
+data ServerOutput
+  = ServerOutputContents String
+    -- ^ The entire document.
+  | ServerOutputDelta Editor.DocumentChange
+    -- ^ A document delta.
+
+-- TODO decodeJsonServerOutput
+instance decodeJsonServerOutput :: DecodeJson ServerOutput where
+  decodeJson _ = Left "TODO"
 
 type NbInput
   = Unit
@@ -69,7 +78,10 @@ render { text: text } =
 
 eval :: NbQuery ~> H.HalogenM NbState NbQuery Editor.QueryF Editor.Slot NbOutput Aff
 eval = case _ of
-  HandleServerOutput dc next -> do
+  HandleServerOutput (ServerOutputContents str) next -> do
+    H.put { text: str }
+    pure next
+  HandleServerOutput (ServerOutputDelta dc) next -> do
     st <- H.get
     let newStr = calcNewString st.text dc
     H.modify_ (_ { text = newStr })

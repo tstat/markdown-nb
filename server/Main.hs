@@ -211,6 +211,7 @@ handleNewClient fireDisconnect cid document (pconn, tid) = do
     liftIO (WebSockets.acceptRequest pconn)
 
   -- Send the client the current document
+  -- TODO: Make this json & match ServerOutput in client
   {-
   liftIO
     (WebSockets.sendTextData conn (Document.toText document)
