@@ -98,10 +98,10 @@ sink query =
 foreignToJson :: Foreign -> Effect ServerOutput
 foreignToJson x =
   fromRight do
-    string <- lmap (const "") (runExcept (readString x))
+    string <- lmap show (runExcept (readString x))
     json <- jsonParser string
     decodeJson json
 
-fromRight :: forall a b. Either a b -> Effect b
+fromRight :: forall b. Either String b -> Effect b
 fromRight =
-  either (const (throw "fromRight: Left")) pure
+  either (\err -> throw $ "failed to parse json: " <> err) pure
