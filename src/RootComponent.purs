@@ -8,6 +8,8 @@ import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson
                      )
 import Data.Const (Const)
 import Data.Either
+import Data.Either.Nested (Either2)
+import Data.Functor.Coproduct.Nested (Coproduct2)
 import Data.Maybe (Maybe(..))
 import Data.String as String
 import Effect (Effect)
@@ -22,8 +24,13 @@ import Halogen.HTML (HTML)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
+import Halogen.Component.ChildPath (cp1, cp2)
 
 import Editor as Editor
+import Renderer as Renderer
+
+type ChildQuery = Coproduct2 Editor.QueryF Renderer.QueryF
+type ChildSlot = Either2 Editor.Slot Renderer.Slot
 
 -- | The application state, which in this case just stores the current text in
 -- | the editor.
@@ -89,25 +96,27 @@ initialState _ = unit
 
 render
   :: NbState
-  -> ParentHTML NbQuery Editor.QueryF Editor.Slot Aff
+  -> ParentHTML NbQuery ChildQuery ChildSlot Aff
 render _ =
   HH.div_
     [ HH.h1_ [ HH.text "Neckbeards" ]
     , HH.div_
-        [ HH.slot Editor.Slot Editor.ui "" handleEditorMessage ]
+        [ HH.slot' cp1 Editor.Slot Editor.ui "" handleEditorMessage ]
+    , HH.div_
+        [ HH.slot' cp2 Renderer.Slot Renderer.ui unit (const Nothing) ]
     , HH.p_
         [ HH.text ("Current text: ") ]
     ]
 
-eval :: NbQuery ~> H.HalogenM NbState NbQuery Editor.QueryF Editor.Slot NbOutput Aff
+eval :: NbQuery ~> H.HalogenM NbState NbQuery ChildQuery ChildSlot NbOutput Aff
 eval = case _ of
   HandleServerOutput so next -> do
     case so of
       ServerOutputContents str -> do
-         _ <- H.query Editor.Slot (Editor.SetContents str unit)
+         _ <- H.query' cp1 Editor.Slot (Editor.SetContents str unit)
          pure unit
       ServerOutputDelta dc -> do
-        _ <- H.query Editor.Slot (Editor.ApplyChange dc unit)
+        _ <- H.query' cp1 Editor.Slot (Editor.ApplyChange dc unit)
         pure unit
     pure next
   EditorTextChange dc next -> do

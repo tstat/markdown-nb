@@ -8,6 +8,7 @@ import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson
                      , caseJsonObject, caseJsonString, fromString, (.?)
                      , (~>), jsonEmptyObject, (:=), encodeJson
                      )
+import Data.Foldable (traverse_)
 import Data.Const (Const)
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
@@ -70,9 +71,9 @@ data Message
 
 instance encodeDocumentChange :: EncodeJson DocumentChange where
   encodeJson (Deletion k n) =
-       "type"   := "deletion"
-    ~> "pos"    := k
-    ~> "len" := n
+       "type" := "deletion"
+    ~> "pos"  := k
+    ~> "len"  := n
     ~> jsonEmptyObject
   encodeJson (Insertion k str) =
        "type"    := "insertion"
@@ -141,8 +142,8 @@ applyChange dc = do
           case dc of
             (Insertion i str) ->
               if sel.start >= i
-              then i + String.length str
-              else i
+              then sel.start + String.length str
+              else sel.start
             (Deletion i k) ->
               if sel.start >= i + k
               then sel.start - k
@@ -155,11 +156,7 @@ runKeyDown
 runKeyDown kev = do
   liftEffect $ preventDefault $ Keyboard.toEvent kev
   sel <- getSelection
-  st <- H.get
-  if sel.start /= sel.end
-    then H.raise $ DocumentUpdate $ Deletion (min sel.start sel.end) (abs $ sel.start - sel.end)
-    else pure unit
-  H.raise $ DocumentUpdate $ docUpdate sel.start (Keyboard.key kev)
+  traverse_ (H.raise <<< DocumentUpdate) $ docUpdate sel (Keyboard.key kev)
   pure unit
 
 type Selection = { start :: Int, end :: Int }
@@ -205,12 +202,19 @@ shouldInsert kev = str == "Backspace"
     str :: String
     str = Keyboard.key kev
 
-docUpdate :: Int -> String -> DocumentChange
-docUpdate i = case _ of
-  "Backspace" -> Deletion (i-1) 1
-  "Delete"    -> Deletion i 1
-  "Enter"     -> Insertion i "\n"
-  k           -> Insertion i k
+docUpdate :: Selection -> String -> Array DocumentChange
+docUpdate sel str =
+  if sel.start /= sel.end
+  then [Deletion (min sel.start sel.end) (abs $ sel.start - sel.end)] <> handleKey
+  else handleKey
+
+  where
+  handleKey :: Array DocumentChange
+  handleKey = case str of
+    "Backspace" -> if sel.start == sel.end && sel.start == 0 then [] else [Deletion (sel.start-1) 1 ]
+    "Delete"    -> [Deletion sel.start 1 ]
+    "Enter"     -> [Insertion sel.start "\n" ]
+    k           -> [Insertion sel.start k ]
 
 textAreaRefLabel :: H.RefLabel
 textAreaRefLabel = H.RefLabel "textarea"

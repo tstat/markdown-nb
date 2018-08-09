@@ -42,7 +42,7 @@ import RootComponent (NbOutput, NbQuery(..), ServerInput, ServerOutput, ui)
 main :: Effect Unit
 main = do
   connection <-
-    WebSocket.create "ws://localhost:8600" []
+    WebSocket.create "ws://10.0.0.16:8600" []
 
   HA.runHalogenAff do
     body <- HA.awaitBody
