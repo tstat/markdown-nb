@@ -47,7 +47,7 @@ type State = { text :: String }
 data QueryF a
   = HandleKeyDown KeyboardEvent a
   | HandlePaste ClipboardEvent a
-  | ApplyChange DocumentChange a
+  | ApplyChange DocumentChange (String -> a)
   | SetContents String a
 
 type Input
@@ -67,7 +67,6 @@ documentChangeLen (Deletion _ i ) = i
 
 data Message
   = DocumentUpdate DocumentChange
-  | NewContent String
 
 instance encodeDocumentChange :: EncodeJson DocumentChange where
   encodeJson (Deletion k n) =
@@ -101,11 +100,13 @@ render
   :: State
   -> HTML Void (QueryF Unit)
 render st =
-  HH.textarea
-  [ HE.onKeyDown (HE.input HandleKeyDown)
-  , HE.onPaste (HE.input HandlePaste)
-  , HP.ref textAreaRefLabel
-  , HP.value st.text
+  HH.div [ HP.class_ (HH.ClassName "editor") ]
+  [ HH.textarea
+    [ HE.onKeyDown (HE.input HandleKeyDown)
+    , HE.onPaste (HE.input HandlePaste)
+    , HP.ref textAreaRefLabel
+    , HP.value st.text
+    ]
   ]
 
 eval :: QueryF ~> H.HalogenM State QueryF (Const Void) Void Message Aff
@@ -120,20 +121,20 @@ eval = case _ of
     log "paste not implemented yet"
     pure next
   ApplyChange dc next -> do
-    applyChange dc
-    pure next
+    st <- applyChange dc
+    pure (next st)
   SetContents str next -> do
     H.put { text: str }
     pure next
 
 applyChange
   :: DocumentChange
-  -> H.HalogenM State QueryF (Const Void) Void Message Aff Unit
+  -> H.HalogenM State QueryF (Const Void) Void Message Aff String
 applyChange dc = do
   sel <- getSelection
   st <- H.modify (\st -> st { text = calcNewString st.text dc })
   setSelection (newSelection sel)
-  H.raise $ NewContent st.text
+  pure st.text
   where
     newSelection :: Selection -> Selection
     newSelection sel = { start: newStart, end: newEnd }

@@ -1,3 +1,11 @@
-.ace-editor {
-  height: 300px;
+.editor {
+  width: 50%;
+  height: 100%;
+  display: inline;
+}
+
+.renderer {
+  width: 50%;
+  height: 100%;
+  display: inline;
 }

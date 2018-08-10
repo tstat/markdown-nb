@@ -101,11 +101,9 @@ render _ =
   HH.div_
     [ HH.h1_ [ HH.text "Neckbeards" ]
     , HH.div_
-        [ HH.slot' cp1 Editor.Slot Editor.ui "" handleEditorMessage ]
-    , HH.div_
-        [ HH.slot' cp2 Renderer.Slot Renderer.ui unit (const Nothing) ]
-    , HH.p_
-        [ HH.text ("Current text: ") ]
+        [ HH.slot' cp1 Editor.Slot Editor.ui "" handleEditorMessage
+        , HH.slot' cp2 Renderer.Slot Renderer.ui unit (const Nothing)
+        ]
     ]
 
 eval :: NbQuery ~> H.HalogenM NbState NbQuery ChildQuery ChildSlot NbOutput Aff
@@ -114,10 +112,15 @@ eval = case _ of
     case so of
       ServerOutputContents str -> do
          _ <- H.query' cp1 Editor.Slot (Editor.SetContents str unit)
+         b <- H.query' cp2 Renderer.Slot (Renderer.SetContent str identity)
          pure unit
       ServerOutputDelta dc -> do
-        _ <- H.query' cp1 Editor.Slot (Editor.ApplyChange dc unit)
-        pure unit
+        mstr <- H.query' cp1 Editor.Slot (Editor.ApplyChange dc identity)
+        case mstr of
+          Just str -> do
+            _ <- H.query' cp2 Renderer.Slot (Renderer.SetContent str identity)
+            pure unit
+          Nothing -> pure unit
     pure next
   EditorTextChange dc next -> do
     H.raise dc
@@ -125,4 +128,3 @@ eval = case _ of
 
 handleEditorMessage :: Editor.Message -> Maybe (NbQuery Unit)
 handleEditorMessage (Editor.DocumentUpdate dc) = HE.input EditorTextChange dc
-handleEditorMessage (Editor.NewContent str) = Nothing
