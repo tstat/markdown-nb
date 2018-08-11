@@ -1,11 +1,68 @@
-.editor {
-  width: 50%;
-  height: 100%;
-  display: inline;
+
+html,
+body
+{
+  height  : 100%;
+  width   : 100%;
+  margin  : 0px 0px 0px 0px;
+  padding : 0px 0px 0px 0px;
 }
 
-.renderer {
-  width: 50%;
-  height: 100%;
-  display: inline;
+.main
+{
+  max-width : 1400px;
+  margin    : 20px auto 0px auto;
+  height    : 100%;
+  display   : flex;
 }
+
+.wrap
+{
+  height : 100%;
+  width  : 100%;
+}
+
+.wrap header
+{
+  height        : 50px;
+  border-bottom : solid 3px #000000;
+  margin        : 0px 0px 0px 0px;
+  padding       : 0px 0px 0px 0px;
+}
+
+.wrap header h4
+{
+  padding-left   : 50px;
+  margin-bottom  : 0px;
+  padding-bottom : 0px;
+}
+
+.editor
+{
+  flex-grow    : 0;
+  flex-shrink  : 0;
+  flex-basis   : 39%;
+  margin-right : 2%;
+}
+
+.editor textarea
+{
+  height             : 100%;
+  width              : 100%;
+  background-color   : #f1f1f1;
+  -webkit-box-sizing : border-box;
+  -moz-box-sizing    : border-box;
+  -ms-box-sizing     : border-box;
+  -o-box-sizing      : border-box;
+  box-sizing         : border-box;
+  border             : solid 5px #f1f1f1;
+  resize             : none;
+}
+
+.renderer
+{
+  flex-grow : 1;
+}
+
+
+/* Generated with Clay, http://fvisser.nl/clay */

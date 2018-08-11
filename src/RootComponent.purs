@@ -23,6 +23,7 @@ import Halogen.Aff as HA
 import Halogen.HTML (HTML)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Halogen.Component.ChildPath (cp1, cp2)
 
@@ -98,9 +99,11 @@ render
   :: NbState
   -> ParentHTML NbQuery ChildQuery ChildSlot Aff
 render _ =
-  HH.div_
-    [ HH.h1_ [ HH.text "Neckbeards" ]
-    , HH.div_
+  HH.div [ HP.class_ (HH.ClassName "wrap") ]
+    [ HH.header_
+      [ HH.h4_ [ HH.text "markdown-nb" ]
+      ]
+    , HH.div [ HP.class_ (HH.ClassName "main") ]
         [ HH.slot' cp1 Editor.Slot Editor.ui "" handleEditorMessage
         , HH.slot' cp2 Renderer.Slot Renderer.ui unit (const Nothing)
         ]
