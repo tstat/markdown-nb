@@ -1,4 +1,119 @@
 
+*
+{
+  font-size      : 100%;
+  margin         : 0;
+  padding        : 0;
+  border         : 0;
+  font           : inherit;
+  vertical-align : baseline;
+}
+
+html
+{
+  font-family : sans-serif;
+}
+
+p
+{
+  line-height   : 1.19999rem;
+  margin-top    : 1.19999rem;
+  margin-bottom : 0;
+}
+
+ul,
+ol
+{
+  margin-top    : 1.19999rem;
+  margin-bottom : 1.19999rem;
+}
+
+ul li,
+ol li
+{
+  line-height : 1.19999rem;
+}
+
+ul ul,
+ol ol
+{
+  margin-top    : 0;
+  margin-bottom : 0;
+}
+
+blockquote
+{
+  line-height   : 1.19999rem;
+  margin-top    : 1.19999rem;
+  margin-bottom : 1.19999rem;
+}
+
+ul > li
+{
+  margin-left : 20px;
+}
+
+p
+{
+  line-height : 1.19999rem;
+  margin-top  : 1.19999rem;
+}
+
+hr
+{
+  background-color : #000000;
+  height           : 2px;
+}
+
+pre
+{
+  padding          : 1rem 1rem 1rem 1rem;
+  background-color : #333333;
+  color            : #f1f1f1;
+}
+
+code
+{
+  font-size   : 1rem;
+  font-family : monospace;
+}
+
+h1
+{
+  font-size   : 3.99758rem;
+  line-height : 4.7971rem;
+}
+
+h2
+{
+  font-size   : 2.82714rem;
+  line-height : 3.39257rem;
+}
+
+h3
+{
+  font-size   : 1.99939rem;
+  line-height : 2.39927rem;
+}
+
+h4
+{
+  font-size   : 1.41399rem;
+  line-height : 1.69679rem;
+}
+
+h5
+{
+  font-size   : 1rem;
+  line-height : 1.19999rem;
+}
+
+h6
+{
+  font-size   : 1rem;
+  line-height : 1.19999rem;
+}
+
 html,
 body
 {
@@ -16,6 +131,14 @@ body
   display   : flex;
 }
 
+@media only all and (max-width: 1450px)
+{
+.main
+{
+  max-width : 96%;
+}
+
+}
 .wrap
 {
   height : 100%;
@@ -24,7 +147,7 @@ body
 
 .wrap header
 {
-  height        : 50px;
+  height        : 45px;
   border-bottom : solid 3px #000000;
   margin        : 0px 0px 0px 0px;
   padding       : 0px 0px 0px 0px;
@@ -34,15 +157,18 @@ body
 {
   padding-left   : 50px;
   margin-bottom  : 0px;
+  margin-top     : 10px;
   padding-bottom : 0px;
 }
 
 .editor
 {
+  font-family  : monospace;
+  font-size    : 0.70721rem;
   flex-grow    : 0;
   flex-shrink  : 0;
   flex-basis   : 39%;
-  margin-right : 2%;
+  margin-right : 20px;
 }
 
 .editor textarea
@@ -55,7 +181,7 @@ body
   -ms-box-sizing     : border-box;
   -o-box-sizing      : border-box;
   box-sizing         : border-box;
-  border             : solid 5px #f1f1f1;
+  border             : solid 10px #f1f1f1;
   resize             : none;
 }
 

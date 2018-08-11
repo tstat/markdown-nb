@@ -4,7 +4,7 @@
 mkDerivation {
   pname = "markdown-nb-server";
   version = "0";
-  src = ./.;
+  src = ./..;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

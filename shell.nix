@@ -9,7 +9,7 @@ let
     repo = "nixpkgs-channels";
     inherit (pinnedVersion) rev sha256;
   };
-  ghc = hostPkgs.haskell.packages.ghc822.ghcWithPackages
+  ghc = hostPkgs.haskell.packages.ghc822.ghcWithHoogle
         (hpkgs: with hpkgs; [
         clay
         ]);
